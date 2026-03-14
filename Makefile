@@ -28,7 +28,7 @@ all:
 			output="$$output.exe"; \
 		fi; \
 		echo "Building $$output..."; \
-		GOOS=$$os GOARCH=$$arch go build -ldflags="-s -w" -o $$output . || exit 1; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -ldflags="-s -w" -o $$output . || exit 1; \
 	done
 	@echo "✅ All binaries in dist/"
 	@ls -la dist/

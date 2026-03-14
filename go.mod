@@ -1,6 +1,6 @@
-module tssh
+module github.com/wangxiuwen/tssh
 
-go 1.25.0
+go 1.21
 
 require (
 	github.com/aliyun/alibaba-cloud-sdk-go v1.63.107 // indirect

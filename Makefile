@@ -13,7 +13,7 @@ PLATFORMS = \
 .PHONY: all clean build install
 
 build:
-	go build -ldflags="-s -w" -o $(BINARY) .
+	$$(go env GOPATH)/bin/go1.23.6 build -ldflags="-s -w" -o $(BINARY) .
 
 install: build
 	sudo cp $(BINARY) /usr/local/bin/
@@ -28,7 +28,7 @@ all:
 			output="$$output.exe"; \
 		fi; \
 		echo "Building $$output..."; \
-		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -ldflags="-s -w" -o $$output . || exit 1; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch $$(go env GOPATH)/bin/go1.23.6 build -ldflags="-s -w" -o $$output . || exit 1; \
 	done
 	@echo "✅ All binaries in dist/"
 	@ls -la dist/

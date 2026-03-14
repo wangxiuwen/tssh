@@ -1,6 +1,11 @@
 # tssh (Terminal SSH for Aliyun)
 
-`tssh` is an open-source, zero-dependency, single-binary CLI tool for connecting to and managing Alibaba Cloud (Aliyun) ECS instances natively. It leverages Aliyun's Cloud Assistant and Cloud Shell WebSocket APIs to bypass the need for public IP addresses, Jump Servers (Bastion hosts), or complex SSH key management.
+`tssh` is an open-source, zero-dependency, single-binary CLI tool designed to solve the massive headache of managing Alibaba Cloud (Aliyun) ECS instances natively. 
+
+When managing a fleet of hundreds of servers without public IP addresses, the traditional workflow of hunting down internal IPs, proxying through Bastion hosts (Jump Servers), and distributing SSH keys becomes incredibly cumbersome and inefficient. `tssh` eliminates all of this overhead. By natively leveraging Aliyun's Cloud Assistant and Cloud Shell WebSocket APIs, it establishes secure tunnels directly to your instances using only your Aliyun API credentials.
+
+### 🤖 AI Agent Friendly
+Beyond its interactive UI, `tssh` is built with a highly scriptable architecture. Its structured CLI parameter design, regex-based bulk execution capabilities, and deterministic base64-decoded synchronous outputs make it the perfect tool to feed directly to **AI Agents** for automated infrastructure operations and context ingestion.
 
 [中文文档 (Chinese)](README_zh.md)
 

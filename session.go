@@ -196,9 +196,9 @@ func ConnectSession(config *Config, instanceID string) error {
 		conn.WriteMessage(websocket.BinaryMessage, mkMsg(MsgResize, p))
 	}
 
-	// Resize on SIGWINCH
+	// Resize handler
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGWINCH)
+	notifyResize(sigCh)
 	go func() {
 		for range sigCh {
 			sendResize()
@@ -297,7 +297,7 @@ func PortForward(config *Config, instanceID string, localPort, remotePort int) e
 	fmt.Println("Press Ctrl+C to stop")
 
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-sigCh
 		listener.Close()

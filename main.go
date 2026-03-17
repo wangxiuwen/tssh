@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const version = "1.4.0"
+const version = "1.5.0"
 
 // Global flags parsed from os.Args before subcommand dispatch
 var globalProfile string
@@ -71,6 +71,12 @@ func main() {
 		cmdLifecycle("start", filteredArgs[1:])
 	case "reboot":
 		cmdLifecycle("reboot", filteredArgs[1:])
+	case "top":
+		cmdTop(filteredArgs[1:])
+	case "tunnel":
+		cmdTunnel(filteredArgs[1:])
+	case "web":
+		cmdWeb(filteredArgs[1:])
 	case "doctor":
 		cmdDoctor()
 	case "update":
@@ -187,6 +193,9 @@ func printUsage() {
   tssh watch [-g <pat>] <cmd>      定时轮询执行
   tssh diff -g <pat> <cmd>         多机输出对比
   tssh stop/start/reboot <name>    实例生命周期
+  tssh top [-g <pat>]              实时监控面板
+  tssh tunnel start/list/stop      持久化隧道管理
+  tssh web [--port <port>]         Web 管理面板
   tssh doctor                      自检
   tssh update                      自更新
   tssh ssh-config                  生成 SSH config

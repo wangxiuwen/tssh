@@ -24,17 +24,29 @@ When managing a fleet of hundreds of servers without public IP addresses, the tr
 - **Remote Execution:** Single or batch execution with concurrent workers and structured output.
 - **Connectivity Test:** Quick ping via Cloud Assistant (`tssh ping`).
 - **Health Inspection:** Deep server health check with anomaly detection — CPU, memory, disk, JVM, OOM, TIME_WAIT (`tssh health`).
+- **Instance Details:** Show full instance specs, CPU/Memory/OS/VPC/Security Groups (`tssh info`).
+- **Self-Diagnostics:** Check credentials, API connectivity, cache, dependencies (`tssh doctor`).
+- **Self-Update:** Automatic update from GitHub Releases (`tssh update`).
+- **Remote Log Tailing:** Follow remote logs in real-time (`tssh tail`).
+- **Periodic Monitoring:** Watch command output with auto-refresh (`tssh watch`).
+- **Live Dashboard:** Real-time instance monitoring panel (`tssh top`).
+- **Multi-Instance Diff:** Compare command output across machines with color diff (`tssh diff`).
+- **Instance Lifecycle:** Stop, start, reboot instances with status polling (`tssh stop/start/reboot`).
+- **Persistent Tunnels:** Manage long-running port forwarding tunnels (`tssh tunnel start/list/stop`).
+- **Web Management UI:** Embedded dark-themed web dashboard with search and remote exec (`tssh web`).
+- **Webhook Notifications:** DingTalk, Feishu, Slack, and generic webhook support.
+- **Port Forwarding Sugar:** Shorthand syntax — `tssh -L 3306 host` equals `-L 3306:localhost:3306`.
+- **Resumable Transfers:** Large file transfer with rsync `--partial` for resume on interruption (`tssh cp --resume`).
 - **Multi-Account Profiles:** Manage multiple Aliyun accounts via `~/.tssh/config.json` (`--profile`).
 - **SSH-Compatible Flags:** Accepts standard SSH flags (`-l`, `-p`, `-i`, `-o`, etc.) for drop-in compatibility.
 - **JSON Output:** Machine-readable output for all commands (`-j`/`--json`).
 - **Stdin / Script Input:** Pipe scripts via stdin or execute from file (`-s`).
 - **Batch Execution:** Concurrent execution with keyword match (`-g`), tag filter (`--tag`), progress tracking (`--progress`).
 - **Exit Code Passthrough:** Remote command exit codes propagate to the local process.
-- **Configurable Timeout:** Set per-command timeout (`--timeout 30`).
 - **File Transfer:** Send files via Cloud Assistant API (`tssh cp`), with SCP fallback for large files (>32KB).
 - **Port Forwarding:** Local port tunnels with remote host relay support (`tssh -L 8080:remote:80 <name>`).
 - **rsync Support:** Native rsync via tunnel (`trsync`).
-- **API Rate Limiting:** Built-in rate limiter and automatic retry on API throttling for large-scale operations (200+ instances).
+- **API Rate Limiting:** Built-in rate limiter and automatic retry on API throttling.
 - **Shell Completion:** Bash and Zsh completion support (`tssh completion`).
 - **Execution History:** Track past commands (`tssh history`).
 - **SSH Config Generation:** Generate `~/.ssh/config` entries (`tssh ssh-config`).

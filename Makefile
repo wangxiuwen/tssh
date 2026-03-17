@@ -14,7 +14,7 @@ PLATFORMS = \
 .PHONY: all clean build install
 
 build:
-	$(GO_CMD) build -ldflags="-s -w" -o $(BINARY) .
+	$(GO_CMD) build -ldflags="-s -w" -o $(BINARY) ./cmd/tssh/
 
 install: build
 	sudo cp $(BINARY) /usr/local/bin/
@@ -29,7 +29,7 @@ all:
 			output="$$output.exe"; \
 		fi; \
 		echo "Building $$output..."; \
-		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch $(GO_CMD) build -ldflags="-s -w" -o $$output . || exit 1; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch $(GO_CMD) build -ldflags="-s -w" -o $$output ./cmd/tssh/ || exit 1; \
 	done
 	@echo "✅ All binaries in dist/"
 	@ls -la dist/

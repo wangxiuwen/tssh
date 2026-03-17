@@ -122,6 +122,49 @@ func (a *AliyunClient) FetchAllInstances() ([]Instance, error) {
 	return all, nil
 }
 
+// InstanceDetail holds extended instance information
+type InstanceDetail struct {
+	InstanceType     string
+	CPU              int
+	Memory           int // in MB
+	OSName           string
+	CreationTime     string
+	ExpiredTime      string
+	ChargeType       string
+	VpcID            string
+	SecurityGroupIDs []string
+}
+
+// GetInstanceDetail fetches detailed information for a single instance
+func (a *AliyunClient) GetInstanceDetail(instanceID string) (*InstanceDetail, error) {
+	a.rateLimit()
+	req := ecs.CreateDescribeInstancesRequest()
+	req.RegionId = a.region
+	req.InstanceIds = fmt.Sprintf("[\"%s\"]", instanceID)
+
+	resp, err := a.client.DescribeInstances(req)
+	if err != nil {
+		return nil, fmt.Errorf("DescribeInstances failed: %w", err)
+	}
+
+	if len(resp.Instances.Instance) == 0 {
+		return nil, fmt.Errorf("instance not found: %s", instanceID)
+	}
+
+	inst := resp.Instances.Instance[0]
+	return &InstanceDetail{
+		InstanceType:     inst.InstanceType,
+		CPU:              inst.Cpu,
+		Memory:           inst.Memory,
+		OSName:           inst.OSName,
+		CreationTime:     inst.CreationTime,
+		ExpiredTime:      inst.ExpiredTime,
+		ChargeType:       inst.InstanceChargeType,
+		VpcID:            inst.VpcAttributes.VpcId,
+		SecurityGroupIDs: inst.SecurityGroupIds.SecurityGroupId,
+	}, nil
+}
+
 // StartSession creates a terminal session and returns the WebSocket URL
 func (a *AliyunClient) StartSession(instanceID string) (webSocketURL, sessionID, token string, err error) {
 	req := ecs.CreateStartTerminalSessionRequest()

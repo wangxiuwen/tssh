@@ -165,6 +165,67 @@ func (a *AliyunClient) GetInstanceDetail(instanceID string) (*InstanceDetail, er
 	}, nil
 }
 
+// StopInstance stops an ECS instance
+func (a *AliyunClient) StopInstance(instanceID string) error {
+	a.rateLimit()
+	req := ecs.CreateStopInstanceRequest()
+	req.RegionId = a.region
+	req.InstanceId = instanceID
+	req.ForceStop = requests.NewBoolean(false)
+	_, err := a.client.StopInstance(req)
+	return err
+}
+
+// StartInstance starts an ECS instance
+func (a *AliyunClient) StartInstance(instanceID string) error {
+	a.rateLimit()
+	req := ecs.CreateStartInstanceRequest()
+	req.RegionId = a.region
+	req.InstanceId = instanceID
+	_, err := a.client.StartInstance(req)
+	return err
+}
+
+// RebootInstance reboots an ECS instance
+func (a *AliyunClient) RebootInstance(instanceID string) error {
+	a.rateLimit()
+	req := ecs.CreateRebootInstanceRequest()
+	req.RegionId = a.region
+	req.InstanceId = instanceID
+	req.ForceStop = requests.NewBoolean(false)
+	_, err := a.client.RebootInstance(req)
+	return err
+}
+
+// FetchInstanceByID fetches a single instance by ID and returns it
+func (a *AliyunClient) FetchInstanceByID(instanceID string) ([]Instance, error) {
+	a.rateLimit()
+	req := ecs.CreateDescribeInstancesRequest()
+	req.RegionId = a.region
+	req.InstanceIds = fmt.Sprintf("[\"%s\"]", instanceID)
+
+	resp, err := a.client.DescribeInstances(req)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []Instance
+	for _, inst := range resp.Instances.Instance {
+		var privateIP string
+		if len(inst.VpcAttributes.PrivateIpAddress.IpAddress) > 0 {
+			privateIP = inst.VpcAttributes.PrivateIpAddress.IpAddress[0]
+		}
+		result = append(result, Instance{
+			ID:        inst.InstanceId,
+			Name:      inst.InstanceName,
+			Status:    inst.Status,
+			PrivateIP: privateIP,
+			Region:    inst.RegionId,
+		})
+	}
+	return result, nil
+}
+
 // StartSession creates a terminal session and returns the WebSocket URL
 func (a *AliyunClient) StartSession(instanceID string) (webSocketURL, sessionID, token string, err error) {
 	req := ecs.CreateStartTerminalSessionRequest()

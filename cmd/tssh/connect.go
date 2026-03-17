@@ -80,20 +80,10 @@ func cmdPortForward(target, spec string) {
 	fmt.Printf("📡 端口转发: 127.0.0.1:%d → %s:%d\n", localPort, remoteHost, remotePort)
 
 	if remoteHost == "localhost" || remoteHost == "127.0.0.1" {
-		cmd := startPortForward(config, inst.ID, localPort, remotePort)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-		fatal(cmd.Run(), "portforward")
+		fatal(startNativePortForward(config, inst.ID, localPort, remotePort), "portforward")
 	} else {
-		// Remote host forwarding: use socat on the remote machine via portforward
-		// First, set up portforward to a high port on the remote machine
-		// Then use socat/ssh tunnel to reach the actual remote host
 		fmt.Fprintf(os.Stderr, "📡 通过 %s 中转到 %s:%d\n", inst.Name, remoteHost, remotePort)
 
-		// Strategy: portforward to an ephemeral port on the ECS instance,
-		// then run socat on the ECS to relay to the actual remote host.
-		// Step 1: Run socat in background on remote
 		client, err := NewAliyunClient(config)
 		fatal(err, "create client")
 
@@ -101,7 +91,6 @@ func cmdPortForward(target, spec string) {
 		socatCmd := fmt.Sprintf("nohup socat TCP-LISTEN:%d,fork,reuseaddr TCP:%s:%d &>/dev/null & echo $!", socatPort, remoteHost, remotePort)
 		result, err := client.RunCommand(inst.ID, socatCmd, 10)
 		if err != nil {
-			// Try installing socat
 			fmt.Fprintln(os.Stderr, "⚙️  安装 socat...")
 			client.RunCommand(inst.ID, "which socat || (apt-get install -y socat 2>/dev/null || yum install -y socat 2>/dev/null)", 30)
 			result, err = client.RunCommand(inst.ID, socatCmd, 10)
@@ -109,19 +98,12 @@ func cmdPortForward(target, spec string) {
 		}
 		socatPid := strings.TrimSpace(decodeOutput(result.Output))
 
-		// Step 2: portforward to socat port
-		cmd := startPortForward(config, inst.ID, localPort, socatPort)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-
-		// Cleanup socat on exit
 		defer func() {
 			if socatPid != "" {
 				client.RunCommand(inst.ID, fmt.Sprintf("kill %s 2>/dev/null", socatPid), 5)
 			}
 		}()
 
-		fatal(cmd.Run(), "portforward")
+		fatal(startNativePortForward(config, inst.ID, localPort, socatPort), "portforward")
 	}
 }

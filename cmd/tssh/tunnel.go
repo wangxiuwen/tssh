@@ -66,7 +66,6 @@ func tunnelStart(args []string) {
 		os.Exit(1)
 	}
 
-	// Parse spec with sugar
 	parts := strings.SplitN(spec, ":", 3)
 	switch len(parts) {
 	case 1:
@@ -82,30 +81,24 @@ func tunnelStart(args []string) {
 	cache := getCache()
 	ensureCache(cache)
 	inst := resolveInstanceOrExit(cache, target)
-	config := mustLoadConfig()
 
 	fmt.Printf("🔗 启动隧道: 127.0.0.1:%d → %s:%d (via %s)\n", localPort, remoteHost, remotePort, inst.Name)
 
-	// Start portforward in background
-	cmdArgs := []string{
-		"ali-instance-cli", "portforward",
-		"--instance", inst.ID,
-		"--local-port", strconv.Itoa(localPort),
-		"--remote-port", strconv.Itoa(remotePort),
-		"--region", config.Region,
-		"--access-key-id", config.AccessKeyID,
-		"--access-key-secret", config.AccessKeySecret,
-	}
-
-	cmd := execCommand(cmdArgs[0], cmdArgs[1:]...)
+	// Self-exec: run `tssh _portforward <instanceID> <localPort> <remotePort>` in background
+	exe, _ := os.Executable()
+	cmd := execCommand(exe, "_portforward", inst.ID, strconv.Itoa(localPort), strconv.Itoa(remotePort))
 	cmd.Stdout = nil
 	cmd.Stderr = nil
+	// Credentials via env (secure)
+	cmd.Env = os.Environ()
 	if err := cmd.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "❌ 启动失败: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Save tunnel entry
+	// Detach the child process
+	cmd.Process.Release()
+
 	entry := tunnelEntry{
 		ID:         fmt.Sprintf("t%d", time.Now().Unix()%10000),
 		Instance:   inst.Name,

@@ -11,10 +11,16 @@ PLATFORMS = \
 	windows/amd64 \
 	windows/arm64
 
-.PHONY: all clean build install
+.PHONY: all clean build install test vet
 
 build:
 	$(GO_CMD) build -ldflags="-s -w" -o $(BINARY) ./cmd/tssh/
+
+test:
+	$(GO_CMD) test ./internal/... -v -count=1
+
+vet:
+	$(GO_CMD) vet ./...
 
 install: build
 	sudo cp $(BINARY) /usr/local/bin/

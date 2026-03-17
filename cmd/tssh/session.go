@@ -1,13 +1,10 @@
 package main
 
 import (
-	"encoding/base64"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"net"
 	"os"
-	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
@@ -347,37 +344,3 @@ func PortForward(config *Config, instanceID string, localPort, remotePort int) e
 	}
 }
 
-// Helpers
-
-func sleepDuration(seconds int) {
-	time.Sleep(time.Duration(seconds) * time.Second)
-}
-
-func sleepMs(ms int) {
-	time.Sleep(time.Duration(ms) * time.Millisecond)
-}
-
-func readFileBase64(path string) (string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(data), nil
-}
-
-func findFreePort() int {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return 54321
-	}
-	port := l.Addr().(*net.TCPAddr).Port
-	l.Close()
-	return port
-}
-
-func execCommand(name string, args ...string) *exec.Cmd {
-	return exec.Command(name, args...)
-}
-
-// Suppress unused import warnings
-var _ = io.ReadAll

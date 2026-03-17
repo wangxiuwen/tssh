@@ -13,7 +13,13 @@ import (
 
 
 func parseExecArgs(args []string) *execOptions {
-	opts := &execOptions{timeout: 60}
+	defaultTimeout := 60
+	if v := os.Getenv("TSSH_DEFAULT_TIMEOUT"); v != "" {
+		if t, err := strconv.Atoi(v); err == nil {
+			defaultTimeout = t
+		}
+	}
+	opts := &execOptions{timeout: defaultTimeout}
 	var positional []string
 
 	for i := 0; i < len(args); i++ {

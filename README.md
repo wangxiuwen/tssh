@@ -1,6 +1,6 @@
 # tssh (Terminal SSH for Aliyun)
 
-`tssh` is an open-source, zero-dependency, single-binary CLI tool designed to solve the massive headache of managing Alibaba Cloud (Aliyun) ECS instances natively. 
+`tssh` is an open-source, **zero external dependency**, single-binary CLI tool for managing Alibaba Cloud (Aliyun) ECS instances. No SSH keys, no bastion hosts, no `ali-instance-cli` — everything runs natively via Cloud Assistant WebSocket APIs.
 
 When managing a fleet of hundreds of servers without public IP addresses, the traditional workflow of hunting down internal IPs, proxying through Bastion hosts (Jump Servers), and distributing SSH keys becomes incredibly cumbersome and inefficient. `tssh` eliminates all of this overhead. By natively leveraging Aliyun's Cloud Assistant and Cloud Shell WebSocket APIs, it establishes secure tunnels directly to your instances using only your Aliyun API credentials.
 
@@ -25,7 +25,7 @@ When managing a fleet of hundreds of servers without public IP addresses, the tr
 - **Connectivity Test:** Quick ping via Cloud Assistant (`tssh ping`).
 - **Health Inspection:** Deep server health check with anomaly detection — CPU, memory, disk, JVM, OOM, TIME_WAIT (`tssh health`).
 - **Instance Details:** Show full instance specs, CPU/Memory/OS/VPC/Security Groups (`tssh info`).
-- **Self-Diagnostics:** Check credentials, API connectivity, cache, dependencies (`tssh doctor`).
+- **Self-Diagnostics:** Check credentials, API connectivity, cache status (`tssh doctor`).
 - **Self-Update:** Automatic update from GitHub Releases (`tssh update`).
 - **Remote Log Tailing:** Follow remote logs in real-time (`tssh tail`).
 - **Periodic Monitoring:** Watch command output with auto-refresh (`tssh watch`).
@@ -33,7 +33,7 @@ When managing a fleet of hundreds of servers without public IP addresses, the tr
 - **Multi-Instance Diff:** Compare command output across machines with color diff (`tssh diff`).
 - **Instance Lifecycle:** Stop, start, reboot instances with status polling (`tssh stop/start/reboot`).
 - **Persistent Tunnels:** Manage long-running port forwarding tunnels (`tssh tunnel start/list/stop`).
-- **Web Management UI:** Embedded dark-themed web dashboard with search and remote exec (`tssh web`).
+- **Web Management UI:** Embedded dark-themed web dashboard with token auth (`tssh web --token <tok>`).
 - **Webhook Notifications:** DingTalk, Feishu, Slack, and generic webhook support.
 - **Port Forwarding Sugar:** Shorthand syntax — `tssh -L 3306 host` equals `-L 3306:localhost:3306`.
 - **Resumable Transfers:** Large file transfer with rsync `--partial` for resume on interruption (`tssh cp --resume`).
@@ -125,6 +125,13 @@ tssh exec -s deploy.sh my-server
 
 # Custom timeout
 tssh exec --timeout 120 my-server "long-running-task"
+
+# Webhook notification on completion
+tssh exec --notify https://hook.example.com/webhook -g "prod" "apt update"
+
+# Default timeout via env var
+export TSSH_DEFAULT_TIMEOUT=300
+tssh exec -g "prod" "long-task"
 ```
 
 ### Connectivity Test
@@ -190,6 +197,35 @@ tssh profiles
 tssh --profile staging ls
 tssh -p staging exec my-server uptime
 ```
+
+### Web Management
+
+```bash
+# Start web UI
+tssh web --port 8080
+
+# With token authentication
+tssh web --port 8080 --token my-secret-token
+```
+
+## Project Structure
+
+```
+cmd/tssh/          # CLI 入口 + 子命令
+internal/model/     # 共享类型 (Instance, Config, etc.)
+internal/config/    # 多源凭证加载
+internal/cache/     # 实例缓存 + 模式匹配
+internal/aliyun/    # ECS API 客户端 (限流 + 重试)
+```
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `ALIBABA_CLOUD_ACCESS_KEY_ID` | Aliyun AccessKey ID |
+| `ALIBABA_CLOUD_ACCESS_KEY_SECRET` | Aliyun AccessKey Secret |
+| `ALIBABA_CLOUD_REGION_ID` | Region (default: cn-beijing) |
+| `TSSH_DEFAULT_TIMEOUT` | Default exec timeout in seconds (default: 60) |
 
 ## Performance
 

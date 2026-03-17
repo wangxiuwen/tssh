@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const version = "1.6.0"
+const version = "1.7.0"
 
 // Global flags parsed from os.Args before subcommand dispatch
 var globalProfile string
@@ -81,6 +81,18 @@ func main() {
 		cmdDoctor()
 	case "update":
 		cmdUpdate()
+	case "_portforward":
+		// Internal: daemon mode for tunnel, args: <instanceID> <localPort> <remotePort>
+		if len(filteredArgs) < 4 {
+			os.Exit(1)
+		}
+		cfg := mustLoadConfig()
+		lp, _ := strconv.Atoi(filteredArgs[2])
+		rp, _ := strconv.Atoi(filteredArgs[3])
+		if err := PortForward(cfg, filteredArgs[1], lp, rp); err != nil {
+			fmt.Fprintf(os.Stderr, "portforward: %v\n", err)
+			os.Exit(1)
+		}
 	case "ssh-config":
 		cmdSSHConfig()
 	case "profiles":
@@ -185,6 +197,8 @@ func printUsage() {
   tssh ls [-j] [--tag k=v]         列出实例
   tssh sync                        同步实例缓存
   tssh exec [options] <target> <cmd>   远程执行
+    --notify <url>                 执行后发送 webhook 通知
+    --timeout <sec>                超时秒数 (默认: $TSSH_DEFAULT_TIMEOUT 或 60)
   tssh cp [-g <pat>] <src> <dst>   文件拷贝
   tssh health [-g <pat>]           健康检查
   tssh ping [-g <pat>] [<name>]    连通性测试
@@ -195,7 +209,7 @@ func printUsage() {
   tssh stop/start/reboot <name>    实例生命周期
   tssh top [-g <pat>]              实时监控面板
   tssh tunnel start/list/stop      持久化隧道管理
-  tssh web [--port <port>]         Web 管理面板
+  tssh web [--port <port>] [--token <tok>]  Web 管理面板
   tssh doctor                      自检
   tssh update                      自更新
   tssh ssh-config                  生成 SSH config

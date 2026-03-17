@@ -129,16 +129,12 @@ func cmdDoctor() {
 		}
 	}
 
-	// 4. Check ali-instance-cli
-	fmt.Print("  ali-instance-cli... ")
-	if _, err := execLookPath("ali-instance-cli"); err != nil {
-		fmt.Println("⚠️  未安装 (终端连接和端口转发不可用)")
-	} else {
-		fmt.Println("✅ 已安装")
-	}
-
-	// 5. Version
+	// 4. Version + profiles
 	fmt.Printf("  tssh 版本... %s (%s/%s)\n", version, runtime.GOOS, runtime.GOARCH)
+	profiles := ListProfiles()
+	if len(profiles) > 0 {
+		fmt.Printf("  可用 profiles... %s\n", strings.Join(profiles, ", "))
+	}
 
 	if allOK {
 		fmt.Println("\n✅ 所有检查通过")

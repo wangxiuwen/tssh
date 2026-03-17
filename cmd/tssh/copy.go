@@ -133,11 +133,11 @@ func doBatchCopy(pattern, localPath, remoteDst string) {
 // scpViaPortforward uploads a large file via portforward+scp
 func scpViaPortforward(cfg *Config, instanceID, localPath, remotePath string) error {
 	localPort := findFreePort()
-	pf, err := startPortForwardBg(cfg, instanceID, localPort, 22)
+	stop, err := startPortForwardBgWithCancel(cfg, instanceID, localPort, 22)
 	if err != nil {
 		return err
 	}
-	defer func() { pf.Process.Kill(); pf.Wait() }()
+	defer stop()
 
 	homeDir, _ := os.UserHomeDir()
 	sshKey := filepath.Join(homeDir, ".ssh", "id_rsa")
@@ -205,13 +205,13 @@ func trsyncMain() {
 
 	localPort := findFreePort()
 	fmt.Printf("🔗 %s → portforward :%d\n", inst.Name, localPort)
-	pf, err := startPortForwardBg(config, inst.ID, localPort, 21022)
+	stop, err := startPortForwardBgWithCancel(config, inst.ID, localPort, 21022)
 	if err != nil {
 		// Fallback to port 22
-		pf, err = startPortForwardBg(config, inst.ID, localPort, 22)
+		stop, err = startPortForwardBgWithCancel(config, inst.ID, localPort, 22)
 		fatal(err, "portforward")
 	}
-	defer func() { pf.Process.Kill(); pf.Wait() }()
+	defer stop()
 
 	homeDir, _ := os.UserHomeDir()
 	sshKey := filepath.Join(homeDir, ".ssh", "id_rsa")
@@ -325,12 +325,12 @@ func doResumeCopy(src, dst string) {
 	localPort := findFreePort()
 
 	fmt.Printf("🔗 %s → portforward :%d (断点续传模式)\n", inst.Name, localPort)
-	pf, err := startPortForwardBg(config, inst.ID, localPort, 22)
+	stop, err := startPortForwardBgWithCancel(config, inst.ID, localPort, 22)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "❌ %v\n", err)
 		os.Exit(1)
 	}
-	defer func() { pf.Process.Kill(); pf.Wait() }()
+	defer stop()
 
 	homeDir, _ := os.UserHomeDir()
 	sshKey := filepath.Join(homeDir, ".ssh", "id_rsa")

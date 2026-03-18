@@ -33,16 +33,25 @@ type Client struct {
 	region  string
 	mu      sync.Mutex
 	lastReq time.Time
+	sleepFn func(time.Duration) // injectable for testing
 }
 
 const apiMinInterval = 100 * time.Millisecond
+
+func (a *Client) sleep(d time.Duration) {
+	if a.sleepFn != nil {
+		a.sleepFn(d)
+	} else {
+		time.Sleep(d)
+	}
+}
 
 func (a *Client) rateLimit() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	now := time.Now()
 	if elapsed := now.Sub(a.lastReq); elapsed < apiMinInterval {
-		time.Sleep(apiMinInterval - elapsed)
+		a.sleep(apiMinInterval - elapsed)
 	}
 	a.lastReq = time.Now()
 }
@@ -56,13 +65,18 @@ func isThrottled(err error) bool {
 		strings.Contains(s, "TooManyRequests") || strings.Contains(s, "ServiceUnavailable")
 }
 
+// ecsClientFactory is the function used to create SDK clients — overridable in tests
+var ecsClientFactory = func(region, accessKeyID, accessKeySecret string) (ecsAPI, error) {
+	return ecs.NewClientWithAccessKey(region, accessKeyID, accessKeySecret)
+}
+
 // NewClient creates a new Aliyun ECS client from config
 func NewClient(cfg *model.Config) (*Client, error) {
-	client, err := ecs.NewClientWithAccessKey(cfg.Region, cfg.AccessKeyID, cfg.AccessKeySecret)
+	api, err := ecsClientFactory(cfg.Region, cfg.AccessKeyID, cfg.AccessKeySecret)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ECS client: %w", err)
 	}
-	return &Client{api: client, region: cfg.Region}, nil
+	return &Client{api: api, region: cfg.Region}, nil
 }
 
 // FetchAllInstances retrieves all ECS instances with pagination
@@ -238,7 +252,7 @@ func (a *Client) RunCommand(instanceID, command string, timeoutSec int) (*model.
 		if !isThrottled(err) {
 			return nil, fmt.Errorf("RunCommand failed: %w", err)
 		}
-		time.Sleep(time.Duration(1<<uint(retry)) * time.Second)
+		a.sleep(time.Duration(1<<uint(retry)) * time.Second)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("RunCommand failed (throttled): %w", err)
@@ -253,7 +267,7 @@ func (a *Client) waitForResult(invokeID, instanceID string, timeoutSec int) (*mo
 		if delay > 5*time.Second {
 			delay = 5 * time.Second
 		}
-		time.Sleep(delay)
+		a.sleep(delay)
 
 		a.rateLimit()
 		req := ecs.CreateDescribeInvocationResultsRequest()
@@ -263,7 +277,7 @@ func (a *Client) waitForResult(invokeID, instanceID string, timeoutSec int) (*mo
 		resp, err := a.api.DescribeInvocationResults(req)
 		if err != nil {
 			if isThrottled(err) {
-				time.Sleep(2 * time.Second)
+					a.sleep(2 * time.Second)
 				continue
 			}
 			return nil, err

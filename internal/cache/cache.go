@@ -51,10 +51,7 @@ func (c *Cache) Save(instances []model.Instance) error {
 	if err := c.Ensure(); err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(instances, "", "  ")
-	if err != nil {
-		return err
-	}
+	data, _ := json.MarshalIndent(instances, "", "  ")
 	return os.WriteFile(c.file, data, 0644)
 }
 

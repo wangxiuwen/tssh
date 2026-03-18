@@ -75,7 +75,7 @@ func (m *mockECS) RebootInstance(req *ecs.RebootInstanceRequest) (*ecs.RebootIns
 }
 
 func newTestClient(mock *mockECS) *Client {
-	return &Client{api: mock, region: "cn-test"}
+	return &Client{api: mock, region: "cn-test", sleepFn: func(d time.Duration) {}}
 }
 
 // --- Tests ---
@@ -100,7 +100,8 @@ func TestIsThrottled(t *testing.T) {
 }
 
 func TestRateLimit(t *testing.T) {
-	c := newTestClient(&mockECS{})
+	// Use real time.Sleep (sleepFn=nil) to test actual rate limiting + cover sleep() else branch
+	c := &Client{api: &mockECS{}, region: "cn-test"}
 	start := time.Now()
 	c.rateLimit()
 	c.rateLimit()
@@ -565,4 +566,251 @@ func TestNewClient_InvalidCredentials(t *testing.T) {
 	// NewClient with empty credentials — SDK may or may not error
 	// We test that the function doesn't panic
 	_, _ = NewClient(cfg)
+}
+
+// --- Additional tests for 100% coverage ---
+
+func TestFetchAllInstances_MultiPage(t *testing.T) {
+	callCount := 0
+	mock := &mockECS{
+		describeInstancesFn: func(req *ecs.DescribeInstancesRequest) (*ecs.DescribeInstancesResponse, error) {
+			callCount++
+			resp := &ecs.DescribeInstancesResponse{}
+			resp.TotalCount = 2
+			if callCount == 1 {
+				resp.Instances.Instance = []ecs.Instance{
+					{InstanceId: "i-001", InstanceName: "a"},
+				}
+			} else {
+				resp.Instances.Instance = []ecs.Instance{
+					{InstanceId: "i-002", InstanceName: "b"},
+				}
+			}
+			return resp, nil
+		},
+	}
+
+	c := newTestClient(mock)
+	instances, err := c.FetchAllInstances()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(instances) != 2 {
+		t.Fatalf("expected 2 instances across 2 pages, got %d", len(instances))
+	}
+	if callCount != 2 {
+		t.Errorf("expected 2 API calls (pagination), got %d", callCount)
+	}
+}
+
+func TestGetInstanceDetail_APIError(t *testing.T) {
+	mock := &mockECS{
+		describeInstancesFn: func(req *ecs.DescribeInstancesRequest) (*ecs.DescribeInstancesResponse, error) {
+			return nil, fmt.Errorf("network timeout")
+		},
+	}
+	c := newTestClient(mock)
+	_, err := c.GetInstanceDetail("i-001")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestFetchInstanceByID_APIError(t *testing.T) {
+	mock := &mockECS{
+		describeInstancesFn: func(req *ecs.DescribeInstancesRequest) (*ecs.DescribeInstancesResponse, error) {
+			return nil, fmt.Errorf("forbidden")
+		},
+	}
+	c := newTestClient(mock)
+	_, err := c.FetchInstanceByID("i-001")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestFetchInstanceByID_NoPrivateIP(t *testing.T) {
+	mock := &mockECS{
+		describeInstancesFn: func(req *ecs.DescribeInstancesRequest) (*ecs.DescribeInstancesResponse, error) {
+			resp := &ecs.DescribeInstancesResponse{}
+			resp.Instances.Instance = []ecs.Instance{
+				{InstanceId: "i-001", InstanceName: "test", Status: "Running"},
+			}
+			return resp, nil
+		},
+	}
+	c := newTestClient(mock)
+	instances, err := c.FetchInstanceByID("i-001")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if instances[0].PrivateIP != "" {
+		t.Errorf("expected empty PrivateIP, got %s", instances[0].PrivateIP)
+	}
+}
+
+func TestStartPortForwardSession_Error(t *testing.T) {
+	mock := &mockECS{
+		startTerminalSessionFn: func(req *ecs.StartTerminalSessionRequest) (*ecs.StartTerminalSessionResponse, error) {
+			return nil, fmt.Errorf("port unavailable")
+		},
+	}
+	c := newTestClient(mock)
+	_, _, _, err := c.StartPortForwardSession("i-001", 22)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestRunCommand_ThrottleRetryExhausted(t *testing.T) {
+	callCount := 0
+	mock := &mockECS{
+		runCommandFn: func(req *ecs.RunCommandRequest) (*ecs.RunCommandResponse, error) {
+			callCount++
+			return nil, fmt.Errorf("Throttling.User")
+		},
+	}
+	c := newTestClient(mock)
+	_, err := c.RunCommand("i-001", "cmd", 10)
+	if err == nil {
+		t.Fatal("expected throttle error")
+	}
+	if callCount < 5 {
+		t.Errorf("expected at least 5 retries, got %d", callCount)
+	}
+}
+
+func TestRunCommand_Finished(t *testing.T) {
+	mock := &mockECS{
+		runCommandFn: func(req *ecs.RunCommandRequest) (*ecs.RunCommandResponse, error) {
+			resp := &ecs.RunCommandResponse{}
+			resp.InvokeId = "inv"
+			return resp, nil
+		},
+		describeInvocationResultsFn: func(req *ecs.DescribeInvocationResultsRequest) (*ecs.DescribeInvocationResultsResponse, error) {
+			resp := &ecs.DescribeInvocationResultsResponse{}
+			resp.Invocation.InvocationResults.InvocationResult = []ecs.InvocationResult{
+				{InvocationStatus: "Finished", ExitCode: 0, Output: "done"},
+			}
+			return resp, nil
+		},
+	}
+	c := newTestClient(mock)
+	result, err := c.RunCommand("i-001", "cmd", 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.ExitCode != 0 {
+		t.Error("expected exit 0")
+	}
+}
+
+func TestWaitForResult_ThrottleThenNonThrottleError(t *testing.T) {
+	callCount := 0
+	mock := &mockECS{
+		runCommandFn: func(req *ecs.RunCommandRequest) (*ecs.RunCommandResponse, error) {
+			resp := &ecs.RunCommandResponse{}
+			resp.InvokeId = "inv"
+			return resp, nil
+		},
+		describeInvocationResultsFn: func(req *ecs.DescribeInvocationResultsRequest) (*ecs.DescribeInvocationResultsResponse, error) {
+			callCount++
+			if callCount == 1 {
+				return nil, fmt.Errorf("Throttling")
+			}
+			return nil, fmt.Errorf("InternalError")
+		},
+	}
+	c := newTestClient(mock)
+	_, err := c.RunCommand("i-001", "cmd", 30)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestWaitForResult_Timeout(t *testing.T) {
+	mock := &mockECS{
+		describeInvocationResultsFn: func(req *ecs.DescribeInvocationResultsRequest) (*ecs.DescribeInvocationResultsResponse, error) {
+			// Return Running status → triggers timeout
+			resp := &ecs.DescribeInvocationResultsResponse{}
+			resp.Invocation.InvocationResults.InvocationResult = []ecs.InvocationResult{
+				{InvocationStatus: "Running"},
+			}
+			return resp, nil
+		},
+	}
+	c := newTestClient(mock)
+	// Call waitForResult directly with -10 timeout so deadline is already past
+	_, err := c.waitForResult("inv", "i-001", -10)
+	if err == nil {
+		t.Fatal("expected timeout error")
+	}
+}
+
+func TestWaitForResult_DelayCap(t *testing.T) {
+	// Covers the delay > 5s cap path (attempt >= 4 for 500ms * 2^4 = 8s > 5s)
+	callCount := 0
+	mock := &mockECS{
+		describeInvocationResultsFn: func(req *ecs.DescribeInvocationResultsRequest) (*ecs.DescribeInvocationResultsResponse, error) {
+			callCount++
+			if callCount <= 5 {
+				// Return Running for first 5 calls to reach high attempt count
+				resp := &ecs.DescribeInvocationResultsResponse{}
+				resp.Invocation.InvocationResults.InvocationResult = []ecs.InvocationResult{
+					{InvocationStatus: "Running"},
+				}
+				return resp, nil
+			}
+			// Then succeed
+			resp := &ecs.DescribeInvocationResultsResponse{}
+			resp.Invocation.InvocationResults.InvocationResult = []ecs.InvocationResult{
+				{InvocationStatus: "Success", ExitCode: 0},
+			}
+			return resp, nil
+		},
+	}
+	c := newTestClient(mock)
+	result, err := c.waitForResult("inv", "i-001", 60)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.ExitCode != 0 {
+		t.Error("expected exit 0")
+	}
+	if callCount < 5 {
+		t.Errorf("expected at least 5 calls to hit delay cap, got %d", callCount)
+	}
+}
+
+func TestNewClient_Error(t *testing.T) {
+	origFactory := ecsClientFactory
+	defer func() { ecsClientFactory = origFactory }()
+
+	ecsClientFactory = func(region, akID, akSecret string) (ecsAPI, error) {
+		return nil, fmt.Errorf("auth failed")
+	}
+
+	cfg := &model.Config{Region: "cn-test", AccessKeyID: "ak", AccessKeySecret: "sk"}
+	_, err := NewClient(cfg)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestNewClient_Success(t *testing.T) {
+	origFactory := ecsClientFactory
+	defer func() { ecsClientFactory = origFactory }()
+
+	ecsClientFactory = func(region, akID, akSecret string) (ecsAPI, error) {
+		return &mockECS{}, nil
+	}
+
+	cfg := &model.Config{Region: "cn-test", AccessKeyID: "ak", AccessKeySecret: "sk"}
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if client == nil {
+		t.Error("expected non-nil client")
+	}
 }

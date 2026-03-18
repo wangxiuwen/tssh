@@ -396,3 +396,41 @@ func TestNewWithProfile(t *testing.T) {
 		t.Errorf("New(): expected %s, got %s", expected1, c4.file)
 	}
 }
+
+// --- Additional tests for 100% coverage ---
+
+func TestCacheSave_EnsureError(t *testing.T) {
+	// Use a path that can't be created (file exists where dir expected)
+tmpFile := filepath.Join(t.TempDir(), "blocker")
+os.WriteFile(tmpFile, []byte("x"), 0644)
+c := &Cache{dir: filepath.Join(tmpFile, "sub"), file: filepath.Join(tmpFile, "sub", "test.json")}
+
+err := c.Save([]model.Instance{{Name: "test"}})
+if err == nil {
+t.Error("expected error when dir can't be created")
+}
+}
+
+func TestCacheFindByName_LoadError(t *testing.T) {
+c := &Cache{dir: t.TempDir(), file: "/nonexistent/file.json"}
+_, err := c.FindByName("test")
+if err == nil {
+t.Error("expected error for missing cache file")
+}
+}
+
+func TestCacheFindByPattern_LoadError(t *testing.T) {
+c := &Cache{dir: t.TempDir(), file: "/nonexistent/file.json"}
+_, err := c.FindByPattern("test")
+if err == nil {
+t.Error("expected error for missing cache file")
+}
+}
+
+func TestCacheFindByTag_LoadError(t *testing.T) {
+c := &Cache{dir: t.TempDir(), file: "/nonexistent/file.json"}
+_, err := c.FindByTag("env", "prod")
+if err == nil {
+t.Error("expected error for missing cache file")
+}
+}

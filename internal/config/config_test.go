@@ -325,3 +325,52 @@ func TestListProfilesFromConfigs(t *testing.T) {
 		t.Errorf("expected at least 3 profiles (prod, staging, aliyun:default), got %v", profiles)
 	}
 }
+
+// --- Additional tests for 100% coverage ---
+
+func TestLoadFromTsshConfig_NoDefaultFallsToDefault(t *testing.T) {
+	os.Unsetenv("ALIBABA_CLOUD_ACCESS_KEY_ID")
+	os.Unsetenv("ALIBABA_CLOUD_ACCESS_KEY_SECRET")
+
+	home := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", home)
+	defer os.Setenv("HOME", origHome)
+
+	tsshDir := filepath.Join(home, ".tssh")
+	os.MkdirAll(tsshDir, 0755)
+
+	// No "default" field in config, and no explicit profile → falls to "default" profile name
+	cfg := TsshConfig{
+		Default: "",
+		Profiles: []model.Config{
+			{ProfileName: "default", AccessKeyID: "def-id", AccessKeySecret: "def-secret", Region: "cn-beijing"},
+		},
+	}
+	data, _ := json.Marshal(cfg)
+	os.WriteFile(filepath.Join(tsshDir, "config.json"), data, 0644)
+
+	result, err := Load("")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.AccessKeyID != "def-id" {
+		t.Errorf("expected def-id, got %s", result.AccessKeyID)
+	}
+}
+
+func TestLoadNoConfigFiles(t *testing.T) {
+	os.Unsetenv("ALIBABA_CLOUD_ACCESS_KEY_ID")
+	os.Unsetenv("ALIBABA_CLOUD_ACCESS_KEY_SECRET")
+
+	home := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", home)
+	defer os.Setenv("HOME", origHome)
+
+	// No ~/.tssh/ and no ~/.aliyun/ → should get "no credentials found" error
+	_, err := Load("")
+	if err == nil {
+		t.Error("expected error when no config files exist")
+	}
+}

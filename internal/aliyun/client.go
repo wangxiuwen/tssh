@@ -10,14 +10,26 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
+"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/ecs"
 	"github.com/wangxiuwen/tssh/internal/model"
 )
 
+// ecsAPI defines the subset of ECS SDK methods we use — enables mocking in tests
+type ecsAPI interface {
+	DescribeInstances(req *ecs.DescribeInstancesRequest) (*ecs.DescribeInstancesResponse, error)
+	RunCommand(req *ecs.RunCommandRequest) (*ecs.RunCommandResponse, error)
+	DescribeInvocationResults(req *ecs.DescribeInvocationResultsRequest) (*ecs.DescribeInvocationResultsResponse, error)
+	StartTerminalSession(req *ecs.StartTerminalSessionRequest) (*ecs.StartTerminalSessionResponse, error)
+	SendFile(req *ecs.SendFileRequest) (*ecs.SendFileResponse, error)
+	StopInstance(req *ecs.StopInstanceRequest) (*ecs.StopInstanceResponse, error)
+	StartInstance(req *ecs.StartInstanceRequest) (*ecs.StartInstanceResponse, error)
+	RebootInstance(req *ecs.RebootInstanceRequest) (*ecs.RebootInstanceResponse, error)
+}
+
 // Client wraps the ECS client with rate limiting
 type Client struct {
-	client  *ecs.Client
+	api     ecsAPI
 	region  string
 	mu      sync.Mutex
 	lastReq time.Time
@@ -50,7 +62,7 @@ func NewClient(cfg *model.Config) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ECS client: %w", err)
 	}
-	return &Client{client: client, region: cfg.Region}, nil
+	return &Client{api: client, region: cfg.Region}, nil
 }
 
 // FetchAllInstances retrieves all ECS instances with pagination
@@ -63,7 +75,7 @@ func (a *Client) FetchAllInstances() ([]model.Instance, error) {
 		req.PageSize = requests.NewInteger(100)
 		req.PageNumber = requests.NewInteger(page)
 
-		resp, err := a.client.DescribeInstances(req)
+		resp, err := a.api.DescribeInstances(req)
 		if err != nil {
 			return nil, fmt.Errorf("DescribeInstances failed: %w", err)
 		}
@@ -105,7 +117,7 @@ func (a *Client) GetInstanceDetail(instanceID string) (*model.InstanceDetail, er
 	req := ecs.CreateDescribeInstancesRequest()
 	req.RegionId = a.region
 	req.InstanceIds = fmt.Sprintf("[\"%s\"]", instanceID)
-	resp, err := a.client.DescribeInstances(req)
+	resp, err := a.api.DescribeInstances(req)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +140,7 @@ func (a *Client) StopInstance(instanceID string) error {
 	req.RegionId = a.region
 	req.InstanceId = instanceID
 	req.ForceStop = requests.NewBoolean(false)
-	_, err := a.client.StopInstance(req)
+	_, err := a.api.StopInstance(req)
 	return err
 }
 
@@ -138,7 +150,7 @@ func (a *Client) StartInstance(instanceID string) error {
 	req := ecs.CreateStartInstanceRequest()
 	req.RegionId = a.region
 	req.InstanceId = instanceID
-	_, err := a.client.StartInstance(req)
+	_, err := a.api.StartInstance(req)
 	return err
 }
 
@@ -149,7 +161,7 @@ func (a *Client) RebootInstance(instanceID string) error {
 	req.RegionId = a.region
 	req.InstanceId = instanceID
 	req.ForceStop = requests.NewBoolean(false)
-	_, err := a.client.RebootInstance(req)
+	_, err := a.api.RebootInstance(req)
 	return err
 }
 
@@ -159,7 +171,7 @@ func (a *Client) FetchInstanceByID(instanceID string) ([]model.Instance, error) 
 	req := ecs.CreateDescribeInstancesRequest()
 	req.RegionId = a.region
 	req.InstanceIds = fmt.Sprintf("[\"%s\"]", instanceID)
-	resp, err := a.client.DescribeInstances(req)
+	resp, err := a.api.DescribeInstances(req)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +194,7 @@ func (a *Client) StartSession(instanceID string) (wsURL, sessionID, token string
 	req := ecs.CreateStartTerminalSessionRequest()
 	req.RegionId = a.region
 	req.InstanceId = &[]string{instanceID}
-	resp, err := a.client.StartTerminalSession(req)
+	resp, err := a.api.StartTerminalSession(req)
 	if err != nil {
 		return "", "", "", fmt.Errorf("StartTerminalSession failed: %w", err)
 	}
@@ -195,7 +207,7 @@ func (a *Client) StartPortForwardSession(instanceID string, port int) (wsURL, se
 	req.RegionId = a.region
 	req.InstanceId = &[]string{instanceID}
 	req.PortNumber = requests.NewInteger(port)
-	resp, err := a.client.StartTerminalSession(req)
+	resp, err := a.api.StartTerminalSession(req)
 	if err != nil {
 		return "", "", "", fmt.Errorf("StartTerminalSession (port %d) failed: %w", port, err)
 	}
@@ -219,7 +231,7 @@ func (a *Client) RunCommand(instanceID, command string, timeoutSec int) (*model.
 	var err error
 	for retry := 0; retry < 5; retry++ {
 		a.rateLimit()
-		resp, err = a.client.RunCommand(req)
+		resp, err = a.api.RunCommand(req)
 		if err == nil {
 			break
 		}
@@ -248,7 +260,7 @@ func (a *Client) waitForResult(invokeID, instanceID string, timeoutSec int) (*mo
 		req.RegionId = a.region
 		req.InvokeId = invokeID
 		req.InstanceId = instanceID
-		resp, err := a.client.DescribeInvocationResults(req)
+		resp, err := a.api.DescribeInvocationResults(req)
 		if err != nil {
 			if isThrottled(err) {
 				time.Sleep(2 * time.Second)
@@ -290,7 +302,7 @@ func (a *Client) SendFile(instanceID, localPath, remotePath, fileName string) er
 	req.Content = content
 	req.ContentType = "Base64"
 	req.Overwrite = "true"
-	_, err = a.client.SendFile(req)
+	_, err = a.api.SendFile(req)
 	if err != nil {
 		return fmt.Errorf("SendFile failed: %w", err)
 	}

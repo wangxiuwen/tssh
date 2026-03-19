@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"text/tabwriter"
 )
 
 // cmdRedis routes redis subcommands
@@ -52,21 +53,21 @@ func cmdRedisLs(args []string) {
 		return
 	}
 
-	fmt.Printf("%-4s  %-22s  %-20s  %-8s  %-8s  %-6s  %-36s  %-5s\n",
-		"#", "ID", "名称", "状态", "版本", "容量MB", "连接地址", "端口")
-	fmt.Println(strings.Repeat("─", 140))
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintf(w, "#\tID\t名称\t状态\t版本\t容量MB\t连接地址\t端口\n")
 	for i, inst := range instances {
-		fmt.Printf("%-4d  %-22s  %-20s  %-8s  %-8s  %-6d  %-36s  %-5d\n",
+		fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%d\t%s\t%d\n",
 			i+1,
 			inst.ID,
-			truncateStr(inst.Name, 20),
+			inst.Name,
 			inst.Status,
 			inst.EngineVersion,
 			inst.Capacity,
-			truncateStr(inst.ConnectionDomain, 36),
+			inst.ConnectionDomain,
 			inst.Port,
 		)
 	}
+	w.Flush()
 	fmt.Fprintf(os.Stderr, "\n共 %d 个 Redis 实例\n", len(instances))
 }
 

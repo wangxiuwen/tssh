@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"text/tabwriter"
 )
 
 // cmdRDS routes rds subcommands
@@ -52,25 +53,24 @@ func cmdRDSLs(args []string) {
 		return
 	}
 
-	fmt.Printf("%-4s  %-22s  %-20s  %-8s  %-10s  %-6s  %-16s  %-40s\n",
-		"#", "ID", "名称", "状态", "引擎", "版本", "规格", "连接地址")
-	fmt.Println(strings.Repeat("─", 140))
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintf(w, "#\tID\t名称\t状态\t引擎\t规格\t连接地址\n")
 	for i, inst := range instances {
 		engine := inst.Engine
 		if inst.EngineVersion != "" {
 			engine = inst.Engine + " " + inst.EngineVersion
 		}
-		fmt.Printf("%-4d  %-22s  %-20s  %-8s  %-10s  %-6s  %-16s  %-40s\n",
+		fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			i+1,
 			inst.ID,
-			truncateStr(inst.Name, 20),
+			inst.Name,
 			inst.Status,
-			truncateStr(engine, 10),
-			inst.EngineVersion,
-			truncateStr(inst.InstanceClass, 16),
-			truncateStr(inst.ConnectionString, 40),
+			engine,
+			inst.InstanceClass,
+			inst.ConnectionString,
 		)
 	}
+	w.Flush()
 	fmt.Fprintf(os.Stderr, "\n共 %d 个 RDS 实例\n", len(instances))
 }
 

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	osexec "os/exec"
 	"strings"
 	"text/tabwriter"
 )
@@ -150,7 +149,7 @@ func cmdRedisInfo(args []string) {
 	fmt.Printf("  QPS:       %d\n", found.QPS)
 }
 
-// cmdRedisConnect connects to a Redis instance via ECS port forwarding
+// cmdRedisConnect connects to a Redis instance via ECS terminal session
 func cmdRedisConnect(args []string) {
 	var target string
 	for _, arg := range args {
@@ -195,14 +194,7 @@ func cmdRedisConnect(args []string) {
 		os.Exit(1)
 	}
 
-	// 2. Check redis-cli is available
-	redisCliPath, err := osexec.LookPath("redis-cli")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "❌ 未找到 redis-cli，请先安装: brew install redis")
-		os.Exit(1)
-	}
-
-	// 3. Find an ECS jump host (same VPC preferred)
+	// 2. Find an ECS jump host
 	cache := getCache()
 	ensureCache(cache)
 	ecsInstances, err := cache.Load()
@@ -220,30 +212,16 @@ func cmdRedisConnect(args []string) {
 		os.Exit(1)
 	}
 
-	// 4. Start port forwarding in background
+	// 3. Connect to ECS and run redis-cli
 	remotePort := int(found.Port)
 	if remotePort == 0 {
 		remotePort = 6379
 	}
-	localPort := 16379 // Use non-standard local port to avoid conflicts
 
 	fmt.Fprintf(os.Stderr, "🔗 Redis: %s (%s:%d)\n", found.Name, found.ConnectionDomain, remotePort)
-	fmt.Fprintf(os.Stderr, "📡 通过 ECS %s 端口转发: 127.0.0.1:%d → %s:%d\n", jumpHost.Name, localPort, found.ConnectionDomain, remotePort)
+	fmt.Fprintf(os.Stderr, "📡 通过 ECS %s 连接...\n", jumpHost.Name)
 
-	// Run port forward via Cloud Assistant on the ECS (remote host is the Redis domain)
-	// We need to use the ECS as a TCP relay to the Redis instance
-	stop, err := startPortForwardBgWithCancel(config, jumpHost.ID, localPort, remotePort)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "❌ 端口转发失败: %v\n", err)
-		os.Exit(1)
-	}
-	defer stop()
-
-	// 5. Launch redis-cli
-	fmt.Fprintf(os.Stderr, "🚀 启动 redis-cli...\n\n")
-	cmd := osexec.Command(redisCliPath, "-h", "127.0.0.1", "-p", fmt.Sprintf("%d", localPort))
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Run()
+	cmd := fmt.Sprintf("redis-cli -h %s -p %d", found.ConnectionDomain, remotePort)
+	err = ConnectSessionWithCommand(config, jumpHost.ID, cmd)
+	fatal(err, "connect")
 }

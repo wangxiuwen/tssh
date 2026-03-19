@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	osexec "os/exec"
 	"strings"
 	"text/tabwriter"
 )
@@ -148,7 +147,7 @@ func cmdRDSInfo(args []string) {
 	fmt.Printf("  到期时间:  %s\n", found.ExpireTime)
 }
 
-// cmdRDSConnect connects to an RDS instance via ECS port forwarding
+// cmdRDSConnect connects to an RDS instance via ECS terminal session
 func cmdRDSConnect(args []string) {
 	var target string
 	for _, arg := range args {
@@ -193,14 +192,7 @@ func cmdRDSConnect(args []string) {
 		os.Exit(1)
 	}
 
-	// 2. Check mysql client is available
-	mysqlPath, err := osexec.LookPath("mysql")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "❌ 未找到 mysql 客户端，请先安装: brew install mysql-client")
-		os.Exit(1)
-	}
-
-	// 3. Find an ECS jump host
+	// 2. Find an ECS jump host
 	cache := getCache()
 	ensureCache(cache)
 	ecsInstances, err := cache.Load()
@@ -218,24 +210,12 @@ func cmdRDSConnect(args []string) {
 		os.Exit(1)
 	}
 
-	// 4. Start port forwarding in background
-	localPort := 13306 // Use non-standard local port to avoid conflicts
+	// 3. Connect to ECS and run mysql
+	host := found.ConnectionString
+	fmt.Fprintf(os.Stderr, "🔗 RDS: %s (%s)\n", found.Name, host)
+	fmt.Fprintf(os.Stderr, "📡 通过 ECS %s 连接...\n", jumpHost.Name)
 
-	fmt.Fprintf(os.Stderr, "🔗 RDS: %s (%s)\n", found.Name, found.ConnectionString)
-	fmt.Fprintf(os.Stderr, "📡 通过 ECS %s 端口转发: 127.0.0.1:%d → %s:3306\n", jumpHost.Name, localPort, found.ConnectionString)
-
-	stop, err := startPortForwardBgWithCancel(config, jumpHost.ID, localPort, 3306)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "❌ 端口转发失败: %v\n", err)
-		os.Exit(1)
-	}
-	defer stop()
-
-	// 5. Launch mysql client
-	fmt.Fprintf(os.Stderr, "🚀 启动 mysql...\n\n")
-	cmd := osexec.Command(mysqlPath, "-h", "127.0.0.1", "-P", fmt.Sprintf("%d", localPort), "-u", "root")
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Run()
+	cmd := fmt.Sprintf("mysql -h %s -u root -p", host)
+	err = ConnectSessionWithCommand(config, jumpHost.ID, cmd)
+	fatal(err, "connect")
 }

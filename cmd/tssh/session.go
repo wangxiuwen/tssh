@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -255,6 +256,152 @@ func ConnectSession(config *Config, instanceID string) error {
 
 			case MsgSync:
 				// Respond with sync
+				conn.WriteMessage(websocket.BinaryMessage, mkMsg(MsgSync, nil))
+			}
+		}
+	}()
+
+	// stdin → WebSocket
+	go func() {
+		buf := make([]byte, 1024)
+		for {
+			n, err := os.Stdin.Read(buf)
+			if err != nil {
+				return
+			}
+			inputSeq++
+			conn.WriteMessage(websocket.BinaryMessage, mkMsg(MsgInput, buf[:n]))
+		}
+	}()
+
+	<-done
+	return nil
+}
+
+// ConnectSessionWithCommand establishes an interactive terminal and sends a startup command
+func ConnectSessionWithCommand(config *Config, instanceID string, command string) error {
+	client, err := NewAliyunClient(config)
+	if err != nil {
+		return err
+	}
+
+	wsURL, _, _, err := client.StartSession(instanceID)
+	if err != nil {
+		return err
+	}
+
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		return fmt.Errorf("websocket failed: %w", err)
+	}
+	defer conn.Close()
+
+	// Raw terminal mode
+	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
+	if err != nil {
+		return fmt.Errorf("raw mode failed: %w", err)
+	}
+	defer term.Restore(int(os.Stdin.Fd()), oldState)
+
+	channelID := ""
+	var inputSeq uint32
+	var outputSeq uint32
+
+	mkMsg := func(t uint32, payload []byte) []byte {
+		msg := &AxtMessage{
+			MsgType:    t,
+			Version:    "1.02",
+			ChannelID:  channelID,
+			InstanceID: "",
+			Timestamp:  uint64(time.Now().UnixMilli()),
+			InputSeq:   inputSeq,
+			OutputSeq:  outputSeq,
+			MsgLength:  uint16(len(payload)),
+			Payload:    payload,
+		}
+		return encodeAxtMessage(msg)
+	}
+
+	sendResize := func() {
+		cols, rows, err := term.GetSize(int(os.Stdout.Fd()))
+		if err != nil {
+			return
+		}
+		p := make([]byte, 4)
+		binary.LittleEndian.PutUint16(p[0:], uint16(rows))
+		binary.LittleEndian.PutUint16(p[2:], uint16(cols))
+		inputSeq++
+		conn.WriteMessage(websocket.BinaryMessage, mkMsg(MsgResize, p))
+	}
+
+	// Resize handler
+	sigCh := make(chan os.Signal, 1)
+	notifyResize(sigCh)
+	go func() {
+		for range sigCh {
+			sendResize()
+		}
+	}()
+
+	// Heartbeat every 50s
+	go func() {
+		ticker := time.NewTicker(50 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			conn.WriteMessage(websocket.BinaryMessage, mkMsg(MsgInput, nil))
+		}
+	}()
+
+	done := make(chan struct{})
+	firstOutput := true
+	commandSent := false
+
+	// WebSocket → stdout
+	go func() {
+		defer close(done)
+		for {
+			_, data, err := conn.ReadMessage()
+			if err != nil {
+				return
+			}
+			msg, err := decodeAxtMessage(data)
+			if err != nil {
+				continue
+			}
+
+			if channelID == "" && msg.ChannelID != "" {
+				channelID = msg.ChannelID
+			}
+
+			switch msg.MsgType {
+			case MsgOutput:
+				outputSeq = msg.OutputSeq
+				if msg.Payload != nil {
+					os.Stdout.Write(msg.Payload)
+				}
+				if firstOutput {
+					firstOutput = false
+					sendResize()
+				}
+				// Send command after first prompt appears
+				if !commandSent && msg.Payload != nil {
+					payload := string(msg.Payload)
+					if strings.Contains(payload, "$") || strings.Contains(payload, "#") || strings.Contains(payload, ">") {
+						commandSent = true
+						inputSeq++
+						conn.WriteMessage(websocket.BinaryMessage, mkMsg(MsgInput, []byte(command+"\n")))
+					}
+				}
+
+			case MsgStatus:
+				if len(msg.Payload) > 0 {
+					state := msg.Payload[0]
+					if state == 5 || state == 6 {
+						return
+					}
+				}
+
+			case MsgSync:
 				conn.WriteMessage(websocket.BinaryMessage, mkMsg(MsgSync, nil))
 			}
 		}

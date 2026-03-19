@@ -228,13 +228,29 @@ func (a *Client) StartPortForwardSession(instanceID string, port int) (wsURL, se
 	return resp.WebSocketUrl, resp.SessionId, resp.SecurityToken, nil
 }
 
+// longCommandThreshold is the byte limit above which commands are sent via
+// a base64-encoded wrapper script to avoid Cloud Assistant API URL limits.
+const longCommandThreshold = 2048
+
+// wrapCommand wraps a command for execution on the remote host.
+// Short commands use simple bash -c wrapping.
+// Long commands (>2KB) are base64-encoded into a self-decoding wrapper
+// to avoid API URL length limits and shell quoting issues.
+func wrapCommand(command string) string {
+	if len(command) <= longCommandThreshold {
+		return fmt.Sprintf("bash -c '%s'", strings.ReplaceAll(command, "'", "'\\''"))
+	}
+	// Long command: encode entire command as base64, decode+exec on remote
+	encoded := base64.StdEncoding.EncodeToString([]byte(command))
+	return fmt.Sprintf("eval \"$(echo '%s' | base64 -d)\"", encoded)
+}
+
 // RunCommand executes a command on an instance with retry on throttling
 func (a *Client) RunCommand(instanceID, command string, timeoutSec int) (*model.CommandResult, error) {
 	if timeoutSec <= 0 {
 		timeoutSec = 60
 	}
-	// Wrap command in bash -c to ensure bash features (process substitution etc.) work
-	wrapped := fmt.Sprintf("bash -c '%s'", strings.ReplaceAll(command, "'", "'\\''"))
+	wrapped := wrapCommand(command)
 
 	req := ecs.CreateRunCommandRequest()
 	req.RegionId = a.region

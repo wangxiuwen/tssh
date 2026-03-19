@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -267,6 +268,59 @@ func TestStopStartRebootInstance(t *testing.T) {
 	}
 }
 
+func TestWrapCommand_Short(t *testing.T) {
+	result := wrapCommand("uptime")
+	expected := "bash -c 'uptime'"
+	if result != expected {
+		t.Errorf("expected %q, got %q", expected, result)
+	}
+}
+
+func TestWrapCommand_ShortWithQuotes(t *testing.T) {
+	result := wrapCommand("echo 'hello world'")
+	expected := `bash -c 'echo '\''hello world'\'''`
+	if result != expected {
+		t.Errorf("expected %q, got %q", expected, result)
+	}
+}
+
+func TestWrapCommand_Long(t *testing.T) {
+	// Create a command longer than longCommandThreshold
+	longCmd := strings.Repeat("echo hello; ", 200)
+	result := wrapCommand(longCmd)
+	// Should use base64 eval wrapper
+	if !strings.HasPrefix(result, "eval \"$(echo '") {
+		t.Errorf("expected base64 eval wrapper, got: %s", result[:60])
+	}
+	if !strings.HasSuffix(result, "' | base64 -d)\"") {
+		t.Errorf("expected base64 eval suffix, got: %s", result[len(result)-30:])
+	}
+	// Verify the embedded base64 decodes back to original command
+	b64Part := result[len("eval \"$(echo '"):len(result)-len("' | base64 -d)\"")]
+	decoded, err := base64.StdEncoding.DecodeString(b64Part)
+	if err != nil {
+		t.Fatalf("base64 decode error: %v", err)
+	}
+	if string(decoded) != longCmd {
+		t.Errorf("decoded command mismatch")
+	}
+}
+
+func TestWrapCommand_ExactThreshold(t *testing.T) {
+	// Exactly at threshold should use short path
+	cmd := strings.Repeat("a", longCommandThreshold)
+	result := wrapCommand(cmd)
+	if !strings.HasPrefix(result, "bash -c '") {
+		t.Errorf("expected bash -c wrapping at exact threshold")
+	}
+	// One byte over threshold should use long path
+	cmd2 := strings.Repeat("a", longCommandThreshold+1)
+	result2 := wrapCommand(cmd2)
+	if !strings.HasPrefix(result2, "eval ") {
+		t.Errorf("expected eval wrapping above threshold")
+	}
+}
+
 func TestRunCommand_Success(t *testing.T) {
 	invokeID := "inv-001"
 	mock := &mockECS{
@@ -276,7 +330,7 @@ func TestRunCommand_Success(t *testing.T) {
 			if err != nil {
 				t.Errorf("command not base64: %v", err)
 			}
-			// Command should be wrapped in bash -c
+			// Short command should be wrapped in bash -c
 			if string(decoded) != "bash -c 'uptime'" {
 				t.Errorf("expected \"bash -c 'uptime'\", got '%s'", decoded)
 			}
@@ -298,6 +352,42 @@ func TestRunCommand_Success(t *testing.T) {
 
 	c := newTestClient(mock)
 	result, err := c.RunCommand("i-001", "uptime", 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.ExitCode != 0 {
+		t.Errorf("expected exit 0, got %d", result.ExitCode)
+	}
+}
+
+func TestRunCommand_LongCommand(t *testing.T) {
+	longCmd := strings.Repeat("echo hello; ", 200)
+	invokeID := "inv-long"
+	mock := &mockECS{
+		runCommandFn: func(req *ecs.RunCommandRequest) (*ecs.RunCommandResponse, error) {
+			decoded, err := base64.StdEncoding.DecodeString(req.CommandContent)
+			if err != nil {
+				t.Errorf("command not base64: %v", err)
+			}
+			// Long command should use eval wrapper
+			if !strings.HasPrefix(string(decoded), "eval ") {
+				t.Errorf("expected eval wrapper for long command, got: %s", string(decoded)[:40])
+			}
+			resp := &ecs.RunCommandResponse{}
+			resp.InvokeId = invokeID
+			return resp, nil
+		},
+		describeInvocationResultsFn: func(req *ecs.DescribeInvocationResultsRequest) (*ecs.DescribeInvocationResultsResponse, error) {
+			resp := &ecs.DescribeInvocationResultsResponse{}
+			resp.Invocation.InvocationResults.InvocationResult = []ecs.InvocationResult{
+				{InvocationStatus: "Success", ExitCode: 0},
+			}
+			return resp, nil
+		},
+	}
+
+	c := newTestClient(mock)
+	result, err := c.RunCommand("i-001", longCmd, 10)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

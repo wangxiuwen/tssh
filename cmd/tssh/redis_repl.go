@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // redisRepl starts an interactive Redis REPL over the given TCP connection
@@ -19,17 +20,18 @@ func redisRepl(conn net.Conn) {
 	scanner := bufio.NewScanner(os.Stdin)
 
 	host := conn.RemoteAddr().String()
-	fmt.Fprintf(os.Stderr, "✅ 已连接到 %s\n", host)
-	fmt.Fprintf(os.Stderr, "输入 Redis 命令 (quit 退出):\n\n")
 
-	// Send PING to verify connection
+	// Send PING to verify connection (with 5s timeout)
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	sendRedisCommand(conn, []string{"PING"})
 	resp, err := readRESP(reader)
+	conn.SetReadDeadline(time.Time{}) // Clear timeout
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "❌ 连接失败: %v\n", err)
+		fmt.Fprintf(os.Stderr, "❌ Redis 连接失败 (PING 超时): %v\n", err)
+		fmt.Fprintf(os.Stderr, "   请确认 ECS 跳板与 Redis 在同一 VPC 内\n")
 		return
 	}
-	fmt.Printf("%s> PING\n%s\n", host, formatRESP(resp))
+	fmt.Fprintf(os.Stderr, "✅ 已连接 (%s)\n\n", formatRESP(resp))
 
 	for {
 		fmt.Printf("%s> ", host)

@@ -113,7 +113,7 @@ func (a *Client) FetchAllInstances() ([]model.Instance, error) {
 			all = append(all, model.Instance{
 				ID: inst.InstanceId, Name: inst.InstanceName, Status: inst.Status,
 				PrivateIP: privateIP, PublicIP: publicIP, EIP: eip,
-				Region: inst.RegionId, Zone: inst.ZoneId, Tags: tags,
+				Region: inst.RegionId, Zone: inst.ZoneId, VpcID: inst.VpcAttributes.VpcId, Tags: tags,
 			})
 		}
 		if len(all) >= resp.TotalCount {

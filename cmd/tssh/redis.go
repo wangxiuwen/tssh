@@ -195,18 +195,29 @@ func cmdRedisConnect(args []string) {
 		os.Exit(1)
 	}
 
-	// 2. Find an ECS jump host
+	// 2. Find an ECS jump host in the same VPC
 	cache := getCache()
 	ensureCache(cache)
 	ecsInstances, err := cache.Load()
 	fatal(err, "load ECS cache")
 
 	var jumpHost *Instance
+	var fallback *Instance
 	for i, inst := range ecsInstances {
-		if inst.Status == "Running" {
+		if inst.Status != "Running" {
+			continue
+		}
+		if inst.VpcID == found.VpcID && found.VpcID != "" {
 			jumpHost = &ecsInstances[i]
 			break
 		}
+		if fallback == nil {
+			fallback = &ecsInstances[i]
+		}
+	}
+	if jumpHost == nil && fallback != nil {
+		jumpHost = fallback
+		fmt.Fprintf(os.Stderr, "⚠️  未找到同 VPC (%s) 的 ECS，使用 %s (VPC: %s)\n", found.VpcID, jumpHost.Name, jumpHost.VpcID)
 	}
 	if jumpHost == nil {
 		fmt.Fprintln(os.Stderr, "❌ 找不到可用的 ECS 实例作为跳板")
@@ -221,7 +232,7 @@ func cmdRedisConnect(args []string) {
 	localPort := 16379
 
 	fmt.Fprintf(os.Stderr, "🔗 Redis: %s (%s:%d)\n", found.Name, found.ConnectionDomain, remotePort)
-	fmt.Fprintf(os.Stderr, "📡 通过 ECS %s 中转...\n", jumpHost.Name)
+	fmt.Fprintf(os.Stderr, "📡 跳板: %s (VPC: %s)\n", jumpHost.Name, jumpHost.VpcID)
 
 	aliyunClient, err := NewAliyunClient(config)
 	fatal(err, "create client")

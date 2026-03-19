@@ -10,6 +10,7 @@ type Instance struct {
 	EIP       string            `json:"eip"`
 	Region    string            `json:"region"`
 	Zone      string            `json:"zone"`
+	VpcID     string            `json:"vpc_id,omitempty"`
 	Tags      map[string]string `json:"tags,omitempty"`
 	Profile   string            `json:"profile,omitempty"`
 }

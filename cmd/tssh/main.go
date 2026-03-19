@@ -220,8 +220,10 @@ func printUsage() {
   tssh web [--port <port>] [--token <tok>]  Web 管理面板
   tssh redis ls [-j]               列出 Redis 实例
   tssh redis info <name|id> [-j]   Redis 实例详情
+  tssh redis <name|id>             连接 Redis (自动端口转发)
   tssh rds ls [-j]                 列出 RDS 实例
   tssh rds info <name|id> [-j]     RDS 实例详情
+  tssh rds <name|id>               连接 RDS (自动端口转发)
   tssh doctor                      自检
   tssh update                      自更新
   tssh ssh-config                  生成 SSH config

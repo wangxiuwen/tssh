@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	osexec "os/exec"
 	"strings"
 	"text/tabwriter"
 )
@@ -20,8 +21,8 @@ func cmdRedis(args []string) {
 	case "info":
 		cmdRedisInfo(args[1:])
 	default:
-		fmt.Fprintf(os.Stderr, "未知子命令: redis %s\n", args[0])
-		os.Exit(1)
+		// Treat as connect: tssh redis <name>
+		cmdRedisConnect(args)
 	}
 }
 
@@ -147,4 +148,102 @@ func cmdRedisInfo(args []string) {
 	fmt.Printf("  最大连接:  %d\n", found.Connections)
 	fmt.Printf("  带宽:      %d Mbps\n", found.Bandwidth)
 	fmt.Printf("  QPS:       %d\n", found.QPS)
+}
+
+// cmdRedisConnect connects to a Redis instance via ECS port forwarding
+func cmdRedisConnect(args []string) {
+	var target string
+	for _, arg := range args {
+		if !strings.HasPrefix(arg, "-") {
+			target = arg
+			break
+		}
+	}
+
+	if target == "" {
+		fmt.Fprintln(os.Stderr, "用法: tssh redis <name|id>")
+		os.Exit(1)
+	}
+
+	// 1. Find Redis instance
+	config := mustLoadConfig()
+	redisClient, err := NewRedisClient(config)
+	fatal(err, "create Redis client")
+
+	instances, err := redisClient.FetchAllRedisInstances()
+	fatal(err, "fetch Redis instances")
+
+	var found *RedisInstance
+	targetLower := strings.ToLower(target)
+	for i, inst := range instances {
+		if strings.ToLower(inst.ID) == targetLower || strings.ToLower(inst.Name) == targetLower {
+			found = &instances[i]
+			break
+		}
+	}
+	if found == nil {
+		for i, inst := range instances {
+			if strings.Contains(strings.ToLower(inst.Name), targetLower) ||
+				strings.Contains(strings.ToLower(inst.ID), targetLower) {
+				found = &instances[i]
+				break
+			}
+		}
+	}
+	if found == nil {
+		fmt.Fprintf(os.Stderr, "❌ 找不到 Redis 实例: %s\n", target)
+		os.Exit(1)
+	}
+
+	// 2. Check redis-cli is available
+	redisCliPath, err := osexec.LookPath("redis-cli")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "❌ 未找到 redis-cli，请先安装: brew install redis")
+		os.Exit(1)
+	}
+
+	// 3. Find an ECS jump host (same VPC preferred)
+	cache := getCache()
+	ensureCache(cache)
+	ecsInstances, err := cache.Load()
+	fatal(err, "load ECS cache")
+
+	var jumpHost *Instance
+	for i, inst := range ecsInstances {
+		if inst.Status == "Running" {
+			jumpHost = &ecsInstances[i]
+			break
+		}
+	}
+	if jumpHost == nil {
+		fmt.Fprintln(os.Stderr, "❌ 找不到可用的 ECS 实例作为跳板")
+		os.Exit(1)
+	}
+
+	// 4. Start port forwarding in background
+	remotePort := int(found.Port)
+	if remotePort == 0 {
+		remotePort = 6379
+	}
+	localPort := 16379 // Use non-standard local port to avoid conflicts
+
+	fmt.Fprintf(os.Stderr, "🔗 Redis: %s (%s:%d)\n", found.Name, found.ConnectionDomain, remotePort)
+	fmt.Fprintf(os.Stderr, "📡 通过 ECS %s 端口转发: 127.0.0.1:%d → %s:%d\n", jumpHost.Name, localPort, found.ConnectionDomain, remotePort)
+
+	// Run port forward via Cloud Assistant on the ECS (remote host is the Redis domain)
+	// We need to use the ECS as a TCP relay to the Redis instance
+	stop, err := startPortForwardBgWithCancel(config, jumpHost.ID, localPort, remotePort)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "❌ 端口转发失败: %v\n", err)
+		os.Exit(1)
+	}
+	defer stop()
+
+	// 5. Launch redis-cli
+	fmt.Fprintf(os.Stderr, "🚀 启动 redis-cli...\n\n")
+	cmd := osexec.Command(redisCliPath, "-h", "127.0.0.1", "-p", fmt.Sprintf("%d", localPort))
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Run()
 }

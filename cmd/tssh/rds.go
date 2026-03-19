@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	osexec "os/exec"
 	"strings"
 	"text/tabwriter"
 )
@@ -20,8 +21,8 @@ func cmdRDS(args []string) {
 	case "info":
 		cmdRDSInfo(args[1:])
 	default:
-		fmt.Fprintf(os.Stderr, "未知子命令: rds %s\n", args[0])
-		os.Exit(1)
+		// Treat as connect: tssh rds <name>
+		cmdRDSConnect(args)
 	}
 }
 
@@ -145,4 +146,96 @@ func cmdRDSInfo(args []string) {
 	fmt.Printf("  锁定状态:  %s\n", found.LockMode)
 	fmt.Printf("  创建时间:  %s\n", found.CreateTime)
 	fmt.Printf("  到期时间:  %s\n", found.ExpireTime)
+}
+
+// cmdRDSConnect connects to an RDS instance via ECS port forwarding
+func cmdRDSConnect(args []string) {
+	var target string
+	for _, arg := range args {
+		if !strings.HasPrefix(arg, "-") {
+			target = arg
+			break
+		}
+	}
+
+	if target == "" {
+		fmt.Fprintln(os.Stderr, "用法: tssh rds <name|id>")
+		os.Exit(1)
+	}
+
+	// 1. Find RDS instance
+	config := mustLoadConfig()
+	rdsClient, err := NewRDSClient(config)
+	fatal(err, "create RDS client")
+
+	instances, err := rdsClient.FetchAllRDSInstances()
+	fatal(err, "fetch RDS instances")
+
+	var found *RDSInstance
+	targetLower := strings.ToLower(target)
+	for i, inst := range instances {
+		if strings.ToLower(inst.ID) == targetLower || strings.ToLower(inst.Name) == targetLower {
+			found = &instances[i]
+			break
+		}
+	}
+	if found == nil {
+		for i, inst := range instances {
+			if strings.Contains(strings.ToLower(inst.Name), targetLower) ||
+				strings.Contains(strings.ToLower(inst.ID), targetLower) {
+				found = &instances[i]
+				break
+			}
+		}
+	}
+	if found == nil {
+		fmt.Fprintf(os.Stderr, "❌ 找不到 RDS 实例: %s\n", target)
+		os.Exit(1)
+	}
+
+	// 2. Check mysql client is available
+	mysqlPath, err := osexec.LookPath("mysql")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "❌ 未找到 mysql 客户端，请先安装: brew install mysql-client")
+		os.Exit(1)
+	}
+
+	// 3. Find an ECS jump host
+	cache := getCache()
+	ensureCache(cache)
+	ecsInstances, err := cache.Load()
+	fatal(err, "load ECS cache")
+
+	var jumpHost *Instance
+	for i, inst := range ecsInstances {
+		if inst.Status == "Running" {
+			jumpHost = &ecsInstances[i]
+			break
+		}
+	}
+	if jumpHost == nil {
+		fmt.Fprintln(os.Stderr, "❌ 找不到可用的 ECS 实例作为跳板")
+		os.Exit(1)
+	}
+
+	// 4. Start port forwarding in background
+	localPort := 13306 // Use non-standard local port to avoid conflicts
+
+	fmt.Fprintf(os.Stderr, "🔗 RDS: %s (%s)\n", found.Name, found.ConnectionString)
+	fmt.Fprintf(os.Stderr, "📡 通过 ECS %s 端口转发: 127.0.0.1:%d → %s:3306\n", jumpHost.Name, localPort, found.ConnectionString)
+
+	stop, err := startPortForwardBgWithCancel(config, jumpHost.ID, localPort, 3306)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "❌ 端口转发失败: %v\n", err)
+		os.Exit(1)
+	}
+	defer stop()
+
+	// 5. Launch mysql client
+	fmt.Fprintf(os.Stderr, "🚀 启动 mysql...\n\n")
+	cmd := osexec.Command(mysqlPath, "-h", "127.0.0.1", "-P", fmt.Sprintf("%d", localPort), "-u", "root")
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Run()
 }

@@ -40,3 +40,48 @@ type InstanceDetail struct {
 	VpcID            string
 	SecurityGroupIDs []string
 }
+
+// RedisInstance represents an Alibaba Cloud Redis (R-KVStore) instance
+type RedisInstance struct {
+	ID               string `json:"id"`
+	Name             string `json:"name"`
+	Status           string `json:"status"`
+	InstanceClass    string `json:"instance_class"`
+	InstanceType     string `json:"instance_type"`
+	EngineVersion    string `json:"engine_version"`
+	ArchitectureType string `json:"architecture_type"`
+	Capacity         int64  `json:"capacity_mb"`
+	ConnectionDomain string `json:"connection_domain"`
+	Port             int64  `json:"port"`
+	PrivateIP        string `json:"private_ip"`
+	VpcID            string `json:"vpc_id"`
+	NetworkType      string `json:"network_type"`
+	RegionID         string `json:"region_id"`
+	ZoneID           string `json:"zone_id"`
+	ChargeType       string `json:"charge_type"`
+	CreateTime       string `json:"create_time"`
+	EndTime          string `json:"end_time"`
+	Connections      int64  `json:"connections"`
+	Bandwidth        int64  `json:"bandwidth_mbps"`
+	QPS              int64  `json:"qps"`
+}
+
+// RDSInstance represents an Alibaba Cloud RDS (MySQL/PostgreSQL/...) instance
+type RDSInstance struct {
+	ID               string `json:"id"`
+	Name             string `json:"name"`
+	Status           string `json:"status"`
+	Engine           string `json:"engine"`
+	EngineVersion    string `json:"engine_version"`
+	InstanceClass    string `json:"instance_class"`
+	ConnectionString string `json:"connection_string"`
+	VpcID            string `json:"vpc_id"`
+	NetworkType      string `json:"network_type"`
+	RegionID         string `json:"region_id"`
+	ZoneID           string `json:"zone_id"`
+	PayType          string `json:"pay_type"`
+	CreateTime       string `json:"create_time"`
+	ExpireTime       string `json:"expire_time"`
+	LockMode         string `json:"lock_mode"`
+	Category         string `json:"category"`
+}

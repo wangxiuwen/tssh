@@ -13,11 +13,17 @@ type Instance = model.Instance
 type Config = model.Config
 type CommandResult = model.CommandResult
 type InstanceDetail = model.InstanceDetail
+type RedisInstance = model.RedisInstance
+type RDSInstance = model.RDSInstance
 type AliyunClient = aliyun.Client
+type RedisClient = aliyun.RedisClient
+type RDSClient = aliyun.RDSClient
 type Cache = cache.Cache
 
 // Function wrappers
 func NewAliyunClient(cfg *Config) (*AliyunClient, error) { return aliyun.NewClient(cfg) }
+func NewRedisClient(cfg *Config) (*RedisClient, error)   { return aliyun.NewRedisClient(cfg) }
+func NewRDSClient(cfg *Config) (*RDSClient, error)       { return aliyun.NewRDSClient(cfg) }
 func NewCache() *Cache                                    { return cache.New() }
 func NewCacheWithProfile(profile string) *Cache           { return cache.NewWithProfile(profile) }
 func LoadConfig() (*Config, error)                        { return config.Load("") }
@@ -26,3 +32,4 @@ func ListProfiles() []string                              { return config.ListPr
 func FilterInstances(instances []Instance, pattern string) []Instance {
 	return cache.FilterInstances(instances, pattern)
 }
+

@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const version = "1.7.0"
+const version = "1.7.2"
 
 // Global flags parsed from os.Args before subcommand dispatch
 var globalProfile string
@@ -107,6 +107,10 @@ func main() {
 		fmt.Printf("tssh %s\n", version)
 	case "help", "--help", "-h":
 		printUsage()
+	case "-l", "--list":
+		fmt.Fprintln(os.Stderr, "💡 列出实例请用: tssh ls")
+		fmt.Fprintln(os.Stderr, "   tssh ls [-j] [--tag k=v]")
+		os.Exit(1)
 	default:
 		// SSH-like: tssh [flags] <name> [command]
 		target, localForward, command := parseSSHArgs(filteredArgs)

@@ -276,8 +276,9 @@ func TestRunCommand_Success(t *testing.T) {
 			if err != nil {
 				t.Errorf("command not base64: %v", err)
 			}
-			if string(decoded) != "uptime" {
-				t.Errorf("expected 'uptime', got '%s'", decoded)
+			// Command should be wrapped in bash -c
+			if string(decoded) != "bash -c 'uptime'" {
+				t.Errorf("expected \"bash -c 'uptime'\", got '%s'", decoded)
 			}
 			resp := &ecs.RunCommandResponse{}
 			resp.InvokeId = invokeID

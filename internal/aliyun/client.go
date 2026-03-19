@@ -233,10 +233,13 @@ func (a *Client) RunCommand(instanceID, command string, timeoutSec int) (*model.
 	if timeoutSec <= 0 {
 		timeoutSec = 60
 	}
+	// Wrap command in bash -c to ensure bash features (process substitution etc.) work
+	wrapped := fmt.Sprintf("bash -c '%s'", strings.ReplaceAll(command, "'", "'\\''"))
+
 	req := ecs.CreateRunCommandRequest()
 	req.RegionId = a.region
 	req.Type = "RunShellScript"
-	req.CommandContent = base64.StdEncoding.EncodeToString([]byte(command))
+	req.CommandContent = base64.StdEncoding.EncodeToString([]byte(wrapped))
 	req.ContentEncoding = "Base64"
 	req.InstanceId = &[]string{instanceID}
 	req.Timeout = requests.NewInteger(timeoutSec)

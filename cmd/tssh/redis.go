@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"text/tabwriter"
@@ -149,7 +150,7 @@ func cmdRedisInfo(args []string) {
 	fmt.Printf("  QPS:       %d\n", found.QPS)
 }
 
-// cmdRedisConnect connects to a Redis instance via ECS terminal session
+// cmdRedisConnect connects to a Redis instance via built-in RESP client
 func cmdRedisConnect(args []string) {
 	var target string
 	for _, arg := range args {
@@ -212,16 +213,51 @@ func cmdRedisConnect(args []string) {
 		os.Exit(1)
 	}
 
-	// 3. Connect to ECS and run redis-cli
+	// 3. Set up socat relay on ECS → Redis
 	remotePort := int(found.Port)
 	if remotePort == 0 {
 		remotePort = 6379
 	}
+	localPort := 16379
 
 	fmt.Fprintf(os.Stderr, "🔗 Redis: %s (%s:%d)\n", found.Name, found.ConnectionDomain, remotePort)
-	fmt.Fprintf(os.Stderr, "📡 通过 ECS %s 连接...\n", jumpHost.Name)
+	fmt.Fprintf(os.Stderr, "📡 通过 ECS %s 中转...\n", jumpHost.Name)
 
-	cmd := fmt.Sprintf("redis-cli -h %s -p %d", found.ConnectionDomain, remotePort)
-	err = ConnectSessionWithCommand(config, jumpHost.ID, cmd)
-	fatal(err, "connect")
+	aliyunClient, err := NewAliyunClient(config)
+	fatal(err, "create client")
+
+	socatPort := 19900
+	socatCmd := fmt.Sprintf("nohup socat TCP-LISTEN:%d,fork,reuseaddr TCP:%s:%d &>/dev/null & echo $!", socatPort, found.ConnectionDomain, remotePort)
+	result, err := aliyunClient.RunCommand(jumpHost.ID, socatCmd, 10)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "⚙️  安装 socat...")
+		aliyunClient.RunCommand(jumpHost.ID, "which socat || (apt-get install -y socat 2>/dev/null || yum install -y socat 2>/dev/null)", 30)
+		result, err = aliyunClient.RunCommand(jumpHost.ID, socatCmd, 10)
+		fatal(err, "start socat")
+	}
+	socatPid := strings.TrimSpace(decodeOutput(result.Output))
+
+	defer func() {
+		if socatPid != "" {
+			aliyunClient.RunCommand(jumpHost.ID, fmt.Sprintf("kill %s 2>/dev/null", socatPid), 5)
+		}
+	}()
+
+	// 4. Start local port forward to ECS socat port
+	stop, err := startPortForwardBgWithCancel(config, jumpHost.ID, localPort, socatPort)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "❌ 端口转发失败: %v\n", err)
+		os.Exit(1)
+	}
+	defer stop()
+
+	// 5. Connect built-in Redis REPL to local forwarded port
+	conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", localPort))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "❌ 连接失败: %v\n", err)
+		os.Exit(1)
+	}
+	defer conn.Close()
+
+	redisRepl(conn)
 }

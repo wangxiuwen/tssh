@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"text/tabwriter"
@@ -147,19 +149,25 @@ func cmdRDSInfo(args []string) {
 	fmt.Printf("  到期时间:  %s\n", found.ExpireTime)
 }
 
-// cmdRDSConnect connects to an RDS instance via ECS terminal session
+// cmdRDSConnect connects to an RDS instance via built-in MySQL client
 func cmdRDSConnect(args []string) {
-	var target string
+	var target, user string
 	for _, arg := range args {
-		if !strings.HasPrefix(arg, "-") {
-			target = arg
-			break
+		if strings.HasPrefix(arg, "-u") {
+			user = strings.TrimPrefix(arg, "-u")
+		} else if !strings.HasPrefix(arg, "-") {
+			if target == "" {
+				target = arg
+			}
 		}
 	}
 
 	if target == "" {
-		fmt.Fprintln(os.Stderr, "用法: tssh rds <name|id>")
+		fmt.Fprintln(os.Stderr, "用法: tssh rds <name|id> [-u<user>]")
 		os.Exit(1)
+	}
+	if user == "" {
+		user = "root"
 	}
 
 	// 1. Find RDS instance
@@ -210,12 +218,54 @@ func cmdRDSConnect(args []string) {
 		os.Exit(1)
 	}
 
-	// 3. Connect to ECS and run mysql
-	host := found.ConnectionString
-	fmt.Fprintf(os.Stderr, "🔗 RDS: %s (%s)\n", found.Name, host)
-	fmt.Fprintf(os.Stderr, "📡 通过 ECS %s 连接...\n", jumpHost.Name)
+	// 3. Ask for password
+	fmt.Fprintf(os.Stderr, "🔗 RDS: %s (%s)\n", found.Name, found.ConnectionString)
+	fmt.Fprintf(os.Stderr, "用户: %s\n", user)
+	fmt.Fprintf(os.Stderr, "密码: ")
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+	password := scanner.Text()
 
-	cmd := fmt.Sprintf("mysql -h %s -u root -p", host)
-	err = ConnectSessionWithCommand(config, jumpHost.ID, cmd)
-	fatal(err, "connect")
+	// 4. Set up socat relay on ECS → RDS
+	fmt.Fprintf(os.Stderr, "📡 通过 ECS %s 中转...\n", jumpHost.Name)
+
+	aliyunClient, err := NewAliyunClient(config)
+	fatal(err, "create client")
+
+	localPort := 13306
+	socatPort := 19901
+	host := found.ConnectionString
+	socatCmd := fmt.Sprintf("nohup socat TCP-LISTEN:%d,fork,reuseaddr TCP:%s:3306 &>/dev/null & echo $!", socatPort, host)
+	result, err := aliyunClient.RunCommand(jumpHost.ID, socatCmd, 10)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "⚙️  安装 socat...")
+		aliyunClient.RunCommand(jumpHost.ID, "which socat || (apt-get install -y socat 2>/dev/null || yum install -y socat 2>/dev/null)", 30)
+		result, err = aliyunClient.RunCommand(jumpHost.ID, socatCmd, 10)
+		fatal(err, "start socat")
+	}
+	socatPid := strings.TrimSpace(decodeOutput(result.Output))
+
+	defer func() {
+		if socatPid != "" {
+			aliyunClient.RunCommand(jumpHost.ID, fmt.Sprintf("kill %s 2>/dev/null", socatPid), 5)
+		}
+	}()
+
+	// 5. Start local port forward to ECS socat port
+	stop, err := startPortForwardBgWithCancel(config, jumpHost.ID, localPort, socatPort)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "❌ 端口转发失败: %v\n", err)
+		os.Exit(1)
+	}
+	defer stop()
+
+	// 6. Connect built-in MySQL REPL to local forwarded port
+	conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", localPort))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "❌ 连接失败: %v\n", err)
+		os.Exit(1)
+	}
+	defer conn.Close()
+
+	mysqlRepl(conn, user, password)
 }

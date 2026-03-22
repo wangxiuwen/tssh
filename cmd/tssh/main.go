@@ -112,18 +112,16 @@ func main() {
 	case "help", "--help", "-h":
 		printUsage()
 	case "-l", "--list":
-		fmt.Fprintln(os.Stderr, "💡 列出实例请用: tssh ls")
-		fmt.Fprintln(os.Stderr, "   tssh ls [-j] [--tag k=v]")
-		os.Exit(1)
+		cmdList(filteredArgs[1:])
 	default:
 		// SSH-like: tssh [flags] <name> [command]
-		target, localForward, command := parseSSHArgs(filteredArgs)
+		target, localForward, command, timeout := parseSSHArgs(filteredArgs)
 
 		if target != "" {
 			if localForward != "" {
 				cmdPortForward(target, localForward)
 			} else if len(command) > 0 {
-				cmdRemoteExec(target, strings.Join(command, " "))
+				cmdRemoteExec(target, strings.Join(command, " "), timeout)
 			} else {
 				cmdConnect(target)
 			}
@@ -141,7 +139,13 @@ func main() {
 // parseSSHArgs parses SSH-compatible flags from the argument list.
 // Recognized flags are silently consumed; -L is captured for port forwarding.
 // Remaining positional args become target and command.
-func parseSSHArgs(args []string) (target, localForward string, command []string) {
+func parseSSHArgs(args []string) (target, localForward string, command []string, timeout int) {
+	timeout = 60
+	if v := os.Getenv("TSSH_DEFAULT_TIMEOUT"); v != "" {
+		if t, err := strconv.Atoi(v); err == nil {
+			timeout = t
+		}
+	}
 	// SSH flags that take an argument (skip next arg)
 	argFlags := map[string]bool{
 		"-l": true, "-p": true, "-i": true, "-o": true,
@@ -163,9 +167,26 @@ func parseSSHArgs(args []string) (target, localForward string, command []string)
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		switch {
+		case arg == "--":
+			// "--" separates SSH options from remote command (POSIX convention)
+			// Everything after "--" is the remote command
+			if target == "" && i+1 < len(args) {
+				target = args[i+1]
+				command = append(command, args[i+2:]...)
+			} else {
+				command = append(command, args[i+1:]...)
+			}
+			return
 		case arg == "-L":
 			if i+1 < len(args) {
 				localForward = args[i+1]
+				i++
+			}
+		case arg == "--timeout":
+			if i+1 < len(args) {
+				if t, err := strconv.Atoi(args[i+1]); err == nil {
+					timeout = t
+				}
 				i++
 			}
 		case argFlags[arg]:

@@ -233,16 +233,12 @@ func (a *Client) StartPortForwardSession(instanceID string, port int) (wsURL, se
 const longCommandThreshold = 2048
 
 // wrapCommand wraps a command for execution on the remote host.
-// Short commands use simple bash -c wrapping.
-// Long commands (>2KB) are base64-encoded into a self-decoding wrapper
-// to avoid API URL length limits and shell quoting issues.
+// All commands are base64-encoded to avoid shell quoting/escaping issues
+// (fixes complex commands with semicolons, pipes, quotes etc.).
+// COLUMNS=32767 prevents PTY width truncation of output.
 func wrapCommand(command string) string {
-	if len(command) <= longCommandThreshold {
-		return fmt.Sprintf("bash -c '%s'", strings.ReplaceAll(command, "'", "'\\''"))
-	}
-	// Long command: encode entire command as base64, decode+exec on remote
 	encoded := base64.StdEncoding.EncodeToString([]byte(command))
-	return fmt.Sprintf("eval \"$(echo '%s' | base64 -d)\"", encoded)
+	return fmt.Sprintf("export COLUMNS=32767; eval \"$(echo '%s' | base64 -d)\"", encoded)
 }
 
 // RunCommand executes a command on an instance with retry on throttling

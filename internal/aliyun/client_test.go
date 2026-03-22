@@ -270,15 +270,19 @@ func TestStopStartRebootInstance(t *testing.T) {
 
 func TestWrapCommand_Short(t *testing.T) {
 	result := wrapCommand("uptime")
-	expected := "bash -c 'uptime'"
+	// All commands now use base64 encoding with COLUMNS prefix
+	expectedB64 := base64.StdEncoding.EncodeToString([]byte("uptime"))
+	expected := fmt.Sprintf("export COLUMNS=32767; eval \"$(echo '%s' | base64 -d)\"", expectedB64)
 	if result != expected {
 		t.Errorf("expected %q, got %q", expected, result)
 	}
 }
 
 func TestWrapCommand_ShortWithQuotes(t *testing.T) {
-	result := wrapCommand("echo 'hello world'")
-	expected := `bash -c 'echo '\''hello world'\'''`
+	cmd := "echo 'hello world'"
+	result := wrapCommand(cmd)
+	expectedB64 := base64.StdEncoding.EncodeToString([]byte(cmd))
+	expected := fmt.Sprintf("export COLUMNS=32767; eval \"$(echo '%s' | base64 -d)\"", expectedB64)
 	if result != expected {
 		t.Errorf("expected %q, got %q", expected, result)
 	}
@@ -288,15 +292,16 @@ func TestWrapCommand_Long(t *testing.T) {
 	// Create a command longer than longCommandThreshold
 	longCmd := strings.Repeat("echo hello; ", 200)
 	result := wrapCommand(longCmd)
-	// Should use base64 eval wrapper
-	if !strings.HasPrefix(result, "eval \"$(echo '") {
-		t.Errorf("expected base64 eval wrapper, got: %s", result[:60])
+	// Should use base64 eval wrapper with COLUMNS prefix
+	prefix := "export COLUMNS=32767; eval \"$(echo '"
+	if !strings.HasPrefix(result, prefix) {
+		t.Errorf("expected base64 eval wrapper with COLUMNS, got: %s", result[:80])
 	}
 	if !strings.HasSuffix(result, "' | base64 -d)\"") {
 		t.Errorf("expected base64 eval suffix, got: %s", result[len(result)-30:])
 	}
 	// Verify the embedded base64 decodes back to original command
-	b64Part := result[len("eval \"$(echo '"):len(result)-len("' | base64 -d)\"")]
+	b64Part := result[len(prefix):len(result)-len("' | base64 -d)\"")]
 	decoded, err := base64.StdEncoding.DecodeString(b64Part)
 	if err != nil {
 		t.Fatalf("base64 decode error: %v", err)
@@ -307,17 +312,33 @@ func TestWrapCommand_Long(t *testing.T) {
 }
 
 func TestWrapCommand_ExactThreshold(t *testing.T) {
-	// Exactly at threshold should use short path
+	// All commands now use base64, regardless of length
 	cmd := strings.Repeat("a", longCommandThreshold)
 	result := wrapCommand(cmd)
-	if !strings.HasPrefix(result, "bash -c '") {
-		t.Errorf("expected bash -c wrapping at exact threshold")
+	if !strings.HasPrefix(result, "export COLUMNS=32767; eval ") {
+		t.Errorf("expected base64 wrapping at exact threshold")
 	}
-	// One byte over threshold should use long path
 	cmd2 := strings.Repeat("a", longCommandThreshold+1)
 	result2 := wrapCommand(cmd2)
-	if !strings.HasPrefix(result2, "eval ") {
-		t.Errorf("expected eval wrapping above threshold")
+	if !strings.HasPrefix(result2, "export COLUMNS=32767; eval ") {
+		t.Errorf("expected base64 wrapping above threshold")
+	}
+}
+
+func TestWrapCommand_ComplexCommand(t *testing.T) {
+	// Complex command with semicolons, pipes, quotes — previously broken with bash -c
+	cmd := "echo '=== Test ==='; sysctl net.ipv4.tcp_tw_reuse 2>/dev/null; netstat -tn | grep TIME_WAIT | wc -l"
+	result := wrapCommand(cmd)
+	// Extract and decode base64 content
+	prefix := "export COLUMNS=32767; eval \"$(echo '"
+	suffix := "' | base64 -d)\""
+	b64Part := result[len(prefix):len(result)-len(suffix)]
+	decoded, err := base64.StdEncoding.DecodeString(b64Part)
+	if err != nil {
+		t.Fatalf("base64 decode error: %v", err)
+	}
+	if string(decoded) != cmd {
+		t.Errorf("expected %q, got %q", cmd, string(decoded))
 	}
 }
 
@@ -330,9 +351,9 @@ func TestRunCommand_Success(t *testing.T) {
 			if err != nil {
 				t.Errorf("command not base64: %v", err)
 			}
-			// Short command should be wrapped in bash -c
-			if string(decoded) != "bash -c 'uptime'" {
-				t.Errorf("expected \"bash -c 'uptime'\", got '%s'", decoded)
+			// All commands now use base64 eval wrapper with COLUMNS prefix
+			if !strings.HasPrefix(string(decoded), "export COLUMNS=32767; eval ") {
+				t.Errorf("expected base64 eval wrapper, got '%s'", decoded)
 			}
 			resp := &ecs.RunCommandResponse{}
 			resp.InvokeId = invokeID
@@ -369,9 +390,9 @@ func TestRunCommand_LongCommand(t *testing.T) {
 			if err != nil {
 				t.Errorf("command not base64: %v", err)
 			}
-			// Long command should use eval wrapper
-			if !strings.HasPrefix(string(decoded), "eval ") {
-				t.Errorf("expected eval wrapper for long command, got: %s", string(decoded)[:40])
+			// All commands now use eval wrapper with COLUMNS prefix
+			if !strings.HasPrefix(string(decoded), "export COLUMNS=32767; eval ") {
+				t.Errorf("expected eval wrapper for long command, got: %s", string(decoded)[:60])
 			}
 			resp := &ecs.RunCommandResponse{}
 			resp.InvokeId = invokeID

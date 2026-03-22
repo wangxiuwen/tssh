@@ -23,7 +23,7 @@ func cmdConnect(target string) {
 }
 
 // cmdRemoteExec runs a command on a single instance (SSH-like)
-func cmdRemoteExec(target, command string) {
+func cmdRemoteExec(target, command string, timeout int) {
 	cache := getCache()
 	inst := resolveInstanceOrExit(cache, target)
 
@@ -31,13 +31,17 @@ func cmdRemoteExec(target, command string) {
 	client, err := NewAliyunClient(config)
 	fatal(err, "create client")
 
-	result, err := client.RunCommand(inst.ID, command, 60)
+	if timeout <= 0 {
+		timeout = 60
+	}
+
+	result, err := client.RunCommand(inst.ID, command, timeout)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "❌ %s: %v\n", inst.Name, err)
 		if result != nil {
 			os.Exit(result.ExitCode)
 		}
-		os.Exit(1)
+		os.Exit(255) // SSH convention: 255 = SSH/tssh internal error
 	}
 
 	fmt.Print(decodeOutput(result.Output))

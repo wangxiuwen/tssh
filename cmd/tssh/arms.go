@@ -222,8 +222,60 @@ func cmdArmsDs(args []string) {
 	fmt.Fprintf(os.Stderr, "\n共 %d 个数据源\n", len(datasources))
 }
 
+// cmdArmsOpen opens a Grafana dashboard in the browser
 func cmdArmsOpen(args []string) {
-	fmt.Fprintln(os.Stderr, "TODO: tssh arms open")
+	query := getNonFlagArg(args)
+
+	client := mustGrafanaClient()
+	dashboards, err := client.SearchDashboards(query)
+	fatal(err, "search dashboards")
+
+	if len(dashboards) == 0 {
+		fmt.Fprintln(os.Stderr, "未找到仪表盘")
+		os.Exit(1)
+	}
+
+	var target grafana.Dashboard
+	if len(dashboards) == 1 {
+		target = dashboards[0]
+	} else {
+		// Multiple matches — let user choose
+		fmt.Fprintf(os.Stderr, "匹配到 %d 个仪表盘，请选择:\n", len(dashboards))
+		for i, d := range dashboards {
+			fmt.Fprintf(os.Stderr, "  %d) %s\n", i+1, d.Title)
+		}
+		fmt.Fprint(os.Stderr, "输入编号: ")
+		var choice int
+		if _, err := fmt.Scan(&choice); err != nil || choice < 1 || choice > len(dashboards) {
+			fmt.Fprintln(os.Stderr, "无效选择")
+			os.Exit(1)
+		}
+		target = dashboards[choice-1]
+	}
+
+	url := client.DashboardURL(target)
+	fmt.Fprintf(os.Stderr, "🔗 打开: %s\n", target.Title)
+	openBrowser(url)
+}
+
+func openBrowser(url string) {
+	var cmd string
+	switch {
+	case fileExists("/usr/bin/open"):
+		cmd = "open"
+	case fileExists("/usr/bin/xdg-open"):
+		cmd = "xdg-open"
+	default:
+		fmt.Printf("请手动打开: %s\n", url)
+		return
+	}
+	exec := execCommand(cmd, url)
+	exec.Start()
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func cmdArmsQuery(args []string) {

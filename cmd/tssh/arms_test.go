@@ -101,6 +101,16 @@ func TestNewTabWriter(t *testing.T) {
 	}
 }
 
+func TestFileExists(t *testing.T) {
+	// /usr/bin/open should exist on macOS
+	if !fileExists("/usr/bin") {
+		t.Error("/usr/bin should exist")
+	}
+	if fileExists("/nonexistent/path/12345") {
+		t.Error("nonexistent path should not exist")
+	}
+}
+
 func TestPrintAlert_MinimalLabels(t *testing.T) {
 	alert := grafana.Alert{
 		Labels:      map[string]string{"alertname": "Test"},

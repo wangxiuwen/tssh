@@ -187,6 +187,29 @@ func TestFormatMetricLabels(t *testing.T) {
 	}
 }
 
+func TestPrintActivatedAlert_DoesNotPanic(t *testing.T) {
+	alert := ActivatedAlert{
+		AlertName:       "TestAlert",
+		Severity:        "critical",
+		Status:          "Active",
+		StartsAt:        time.Now().Add(-30*time.Minute).UnixMilli(),
+		IntegrationName: "ARMS_GRAFANA",
+		IntegrationType: "GRAFANA",
+		ExpandFields: map[string]string{
+			"instance": "web-01",
+			"service":  "my-service",
+		},
+	}
+	printActivatedAlert(alert)
+}
+
+func TestPrintActivatedAlert_MinimalFields(t *testing.T) {
+	alert := ActivatedAlert{
+		AlertName: "Simple",
+	}
+	printActivatedAlert(alert)
+}
+
 func TestPrintAlert_MinimalLabels(t *testing.T) {
 	alert := grafana.Alert{
 		Labels:      map[string]string{"alertname": "Test"},

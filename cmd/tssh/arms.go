@@ -36,18 +36,52 @@ func cmdArms(args []string) {
 	}
 }
 
+// mustGrafanaClient creates a Grafana client.
+// Priority: explicit Grafana config → auto-discover from Aliyun ARMS API
 func mustGrafanaClient() *GrafanaClient {
 	cfg, err := LoadGrafanaConfig()
-	fatal(err, "load grafana config")
-	return NewGrafanaClient(cfg)
+	if err == nil {
+		return NewGrafanaClient(cfg)
+	}
+
+	// Fallback: auto-discover via Aliyun credentials
+	aliyunCfg := mustLoadConfig()
+	armsClient, err2 := NewARMSClient(aliyunCfg)
+	if err2 != nil {
+		// Show the original Grafana config error
+		fatal(err, "load grafana config")
+	}
+
+	discovered, err2 := armsClient.DiscoverGrafanaConfig()
+	if err2 != nil {
+		fmt.Fprintf(os.Stderr, "⚠️  自动发现 Grafana 失败: %v\n", err2)
+		fatal(err, "load grafana config")
+	}
+
+	fmt.Fprintf(os.Stderr, "📡 自动发现 Grafana: %s\n", discovered.Endpoint)
+	fmt.Fprintf(os.Stderr, "⚠️  Grafana 仪表盘/查询功能需要 API token\n")
+	fmt.Fprintf(os.Stderr, "   在 Grafana 控制台创建 Service Account token，然后:\n")
+	fmt.Fprintf(os.Stderr, "   export TSSH_GRAFANA_TOKEN=glsa_xxx\n")
+	fmt.Fprintf(os.Stderr, "   或在 ~/.tssh/config.json 中配置 grafana.token\n")
+	os.Exit(1)
+	return NewGrafanaClient(discovered)
 }
 
-// cmdArmsAlerts shows currently firing alerts
+// mustARMSClient creates an ARMS API client from Aliyun credentials
+func mustARMSClient() *ARMSClient {
+	cfg := mustLoadConfig()
+	client, err := NewARMSClient(cfg)
+	fatal(err, "create ARMS client")
+	return client
+}
+
+// cmdArmsAlerts shows currently firing alerts.
+// Uses ARMS API directly (no Grafana token needed).
 func cmdArmsAlerts(args []string) {
 	jsonMode := hasFlag(args, "-j", "--json")
 
-	client := mustGrafanaClient()
-	alerts, err := client.FetchAlerts()
+	armsClient := mustARMSClient()
+	alerts, err := armsClient.FetchAllActivatedAlerts()
 	fatal(err, "fetch alerts")
 
 	if jsonMode {
@@ -61,17 +95,46 @@ func cmdArmsAlerts(args []string) {
 		return
 	}
 
-	// Sort by severity: critical > warning > info > others
+	// Sort by severity
 	sort.Slice(alerts, func(i, j int) bool {
-		return severityOrder(alerts[i].Labels["severity"]) < severityOrder(alerts[j].Labels["severity"])
+		return severityOrder(alerts[i].Severity) < severityOrder(alerts[j].Severity)
 	})
 
 	fmt.Printf("🔥 当前告警 (%d 个触发中)\n", len(alerts))
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
 	for _, alert := range alerts {
-		printAlert(alert)
+		printActivatedAlert(alert)
 	}
+}
+
+func printActivatedAlert(alert ActivatedAlert) {
+	severity := alert.Severity
+	if severity == "" {
+		severity = alert.ExpandFields["severity"]
+	}
+	icon := severityIcon(severity)
+
+	fmt.Printf("%s [%s] %s\n", icon, severity, alert.AlertName)
+
+	if alert.IntegrationType != "" {
+		fmt.Printf("   来源: %s\n", alert.IntegrationName)
+	}
+
+	// Show expand fields (key details)
+	for _, k := range []string{"alertname", "instance", "service", "host"} {
+		if v, ok := alert.ExpandFields[k]; ok && k != "alertname" {
+			fmt.Printf("   %s: %s\n", k, v)
+		}
+	}
+
+	if alert.StartsAt > 0 {
+		startTime := time.Unix(alert.StartsAt/1000, 0)
+		dur := time.Since(startTime)
+		fmt.Printf("   持续: %s\n", formatDuration(dur))
+	}
+
+	fmt.Println()
 }
 
 func printAlert(alert grafana.Alert) {

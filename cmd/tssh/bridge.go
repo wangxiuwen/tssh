@@ -21,6 +21,8 @@ type AliyunClient = aliyun.Client
 type RedisClient = aliyun.RedisClient
 type RDSClient = aliyun.RDSClient
 type GrafanaClient = grafana.Client
+type ARMSClient = aliyun.ARMSClient
+type ActivatedAlert = aliyun.ActivatedAlert
 type Cache = cache.Cache
 
 // Function wrappers
@@ -33,6 +35,7 @@ func LoadConfig() (*Config, error)                          { return config.Load
 func LoadConfigWithProfile(profile string) (*Config, error)  { return config.Load(profile) }
 func LoadGrafanaConfig() (*GrafanaConfig, error)             { return config.LoadGrafana() }
 func NewGrafanaClient(cfg *GrafanaConfig) *GrafanaClient     { return grafana.NewClient(cfg) }
+func NewARMSClient(cfg *Config) (*ARMSClient, error)         { return aliyun.NewARMSClient(cfg) }
 func ListProfiles() []string                              { return config.ListProfiles() }
 func FilterInstances(instances []Instance, pattern string) []Instance {
 	return cache.FilterInstances(instances, pattern)

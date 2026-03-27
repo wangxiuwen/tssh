@@ -11,8 +11,9 @@ import (
 
 // TsshConfig is the tssh-specific config file structure (~/.tssh/config.json)
 type TsshConfig struct {
-	Default  string         `json:"default"`
-	Profiles []model.Config `json:"profiles"`
+	Default  string               `json:"default"`
+	Profiles []model.Config       `json:"profiles"`
+	Grafana  *model.GrafanaConfig `json:"grafana,omitempty"`
 }
 
 // Load reads credentials for a specific profile.
@@ -97,6 +98,38 @@ func Load(profile string) (*model.Config, error) {
 		}
 	}
 	return nil, fmt.Errorf("profile '%s' not found in config", targetProfile)
+}
+
+// LoadGrafana reads Grafana configuration.
+// Priority: env vars → ~/.tssh/config.json
+func LoadGrafana() (*model.GrafanaConfig, error) {
+	endpoint := os.Getenv("TSSH_GRAFANA_URL")
+	token := os.Getenv("TSSH_GRAFANA_TOKEN")
+
+	if endpoint != "" && token != "" {
+		return &model.GrafanaConfig{Endpoint: endpoint, Token: token}, nil
+	}
+
+	home, _ := os.UserHomeDir()
+	tsshConfigPath := filepath.Join(home, ".tssh", "config.json")
+	if data, err := os.ReadFile(tsshConfigPath); err == nil {
+		var cfg TsshConfig
+		if err := json.Unmarshal(data, &cfg); err == nil && cfg.Grafana != nil {
+			g := cfg.Grafana
+			if endpoint != "" {
+				g.Endpoint = endpoint
+			}
+			if token != "" {
+				g.Token = token
+			}
+			if g.Endpoint == "" || g.Token == "" {
+				return nil, fmt.Errorf("grafana 配置不完整: 需要 endpoint 和 token")
+			}
+			return g, nil
+		}
+	}
+
+	return nil, fmt.Errorf("未找到 Grafana 配置: 请设置环境变量 TSSH_GRAFANA_URL/TSSH_GRAFANA_TOKEN 或在 ~/.tssh/config.json 中添加 grafana 段")
 }
 
 // ListProfiles returns all available profile names

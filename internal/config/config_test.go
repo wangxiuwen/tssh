@@ -326,6 +326,141 @@ func TestListProfilesFromConfigs(t *testing.T) {
 	}
 }
 
+// --- Grafana config tests ---
+
+func TestLoadGrafanaFromEnv(t *testing.T) {
+	os.Setenv("TSSH_GRAFANA_URL", "https://grafana.example.com")
+	os.Setenv("TSSH_GRAFANA_TOKEN", "glsa_test_token")
+	defer func() {
+		os.Unsetenv("TSSH_GRAFANA_URL")
+		os.Unsetenv("TSSH_GRAFANA_TOKEN")
+	}()
+
+	cfg, err := LoadGrafana()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Endpoint != "https://grafana.example.com" {
+		t.Errorf("expected https://grafana.example.com, got %s", cfg.Endpoint)
+	}
+	if cfg.Token != "glsa_test_token" {
+		t.Errorf("expected glsa_test_token, got %s", cfg.Token)
+	}
+}
+
+func TestLoadGrafanaFromConfigFile(t *testing.T) {
+	os.Unsetenv("TSSH_GRAFANA_URL")
+	os.Unsetenv("TSSH_GRAFANA_TOKEN")
+
+	home := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", home)
+	defer os.Setenv("HOME", origHome)
+
+	tsshDir := filepath.Join(home, ".tssh")
+	os.MkdirAll(tsshDir, 0755)
+
+	cfg := TsshConfig{
+		Profiles: []model.Config{
+			{ProfileName: "default", AccessKeyID: "id", AccessKeySecret: "secret"},
+		},
+		Grafana: &model.GrafanaConfig{
+			Endpoint: "https://grafana.test.com",
+			Token:    "glsa_file_token",
+		},
+	}
+	data, _ := json.Marshal(cfg)
+	os.WriteFile(filepath.Join(tsshDir, "config.json"), data, 0644)
+
+	result, err := LoadGrafana()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Endpoint != "https://grafana.test.com" {
+		t.Errorf("expected https://grafana.test.com, got %s", result.Endpoint)
+	}
+	if result.Token != "glsa_file_token" {
+		t.Errorf("expected glsa_file_token, got %s", result.Token)
+	}
+}
+
+func TestLoadGrafanaEnvOverridesFile(t *testing.T) {
+	os.Setenv("TSSH_GRAFANA_URL", "https://env-grafana.com")
+	os.Unsetenv("TSSH_GRAFANA_TOKEN")
+	defer os.Unsetenv("TSSH_GRAFANA_URL")
+
+	home := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", home)
+	defer os.Setenv("HOME", origHome)
+
+	tsshDir := filepath.Join(home, ".tssh")
+	os.MkdirAll(tsshDir, 0755)
+
+	cfg := TsshConfig{
+		Grafana: &model.GrafanaConfig{
+			Endpoint: "https://file-grafana.com",
+			Token:    "glsa_file_token",
+		},
+	}
+	data, _ := json.Marshal(cfg)
+	os.WriteFile(filepath.Join(tsshDir, "config.json"), data, 0644)
+
+	result, err := LoadGrafana()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Endpoint != "https://env-grafana.com" {
+		t.Errorf("env should override file endpoint, got %s", result.Endpoint)
+	}
+	if result.Token != "glsa_file_token" {
+		t.Errorf("token should come from file, got %s", result.Token)
+	}
+}
+
+func TestLoadGrafanaNoConfig(t *testing.T) {
+	os.Unsetenv("TSSH_GRAFANA_URL")
+	os.Unsetenv("TSSH_GRAFANA_TOKEN")
+
+	home := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", home)
+	defer os.Setenv("HOME", origHome)
+
+	_, err := LoadGrafana()
+	if err == nil {
+		t.Error("expected error when no grafana config exists")
+	}
+}
+
+func TestLoadGrafanaIncompleteConfig(t *testing.T) {
+	os.Unsetenv("TSSH_GRAFANA_URL")
+	os.Unsetenv("TSSH_GRAFANA_TOKEN")
+
+	home := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", home)
+	defer os.Setenv("HOME", origHome)
+
+	tsshDir := filepath.Join(home, ".tssh")
+	os.MkdirAll(tsshDir, 0755)
+
+	// Only endpoint, no token
+	cfg := TsshConfig{
+		Grafana: &model.GrafanaConfig{
+			Endpoint: "https://grafana.test.com",
+			Token:    "",
+		},
+	}
+	data, _ := json.Marshal(cfg)
+	os.WriteFile(filepath.Join(tsshDir, "config.json"), data, 0644)
+
+	_, err := LoadGrafana()
+	if err == nil {
+		t.Error("expected error for incomplete grafana config")
+	}
+}
+
 // --- Additional tests for 100% coverage ---
 
 func TestLoadFromTsshConfig_NoDefaultFallsToDefault(t *testing.T) {

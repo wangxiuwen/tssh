@@ -15,6 +15,7 @@ type CommandResult = model.CommandResult
 type InstanceDetail = model.InstanceDetail
 type RedisInstance = model.RedisInstance
 type RDSInstance = model.RDSInstance
+type GrafanaConfig = model.GrafanaConfig
 type AliyunClient = aliyun.Client
 type RedisClient = aliyun.RedisClient
 type RDSClient = aliyun.RDSClient
@@ -26,8 +27,9 @@ func NewRedisClient(cfg *Config) (*RedisClient, error)   { return aliyun.NewRedi
 func NewRDSClient(cfg *Config) (*RDSClient, error)       { return aliyun.NewRDSClient(cfg) }
 func NewCache() *Cache                                    { return cache.New() }
 func NewCacheWithProfile(profile string) *Cache           { return cache.NewWithProfile(profile) }
-func LoadConfig() (*Config, error)                        { return config.Load("") }
-func LoadConfigWithProfile(profile string) (*Config, error) { return config.Load(profile) }
+func LoadConfig() (*Config, error)                          { return config.Load("") }
+func LoadConfigWithProfile(profile string) (*Config, error)  { return config.Load(profile) }
+func LoadGrafanaConfig() (*GrafanaConfig, error)             { return config.LoadGrafana() }
 func ListProfiles() []string                              { return config.ListProfiles() }
 func FilterInstances(instances []Instance, pattern string) []Instance {
 	return cache.FilterInstances(instances, pattern)

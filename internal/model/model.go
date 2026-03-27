@@ -67,6 +67,12 @@ type RedisInstance struct {
 	QPS              int64  `json:"qps"`
 }
 
+// GrafanaConfig holds Grafana connection settings for ARMS integration
+type GrafanaConfig struct {
+	Endpoint string `json:"endpoint"`
+	Token    string `json:"token"`
+}
+
 // RDSInstance represents an Alibaba Cloud RDS (MySQL/PostgreSQL/...) instance
 type RDSInstance struct {
 	ID               string `json:"id"`

@@ -278,6 +278,208 @@ func fileExists(path string) bool {
 	return err == nil
 }
 
+// cmdArmsQuery executes a Prometheus query via Grafana proxy
 func cmdArmsQuery(args []string) {
-	fmt.Fprintln(os.Stderr, "TODO: tssh arms query")
+	jsonMode := hasFlag(args, "-j", "--json")
+
+	// Parse -d <dsID> flag
+	dsID := 0
+	var remaining []string
+	for i := 0; i < len(args); i++ {
+		if args[i] == "-d" && i+1 < len(args) {
+			fmt.Sscanf(args[i+1], "%d", &dsID)
+			i++
+		} else if args[i] == "-j" || args[i] == "--json" {
+			continue
+		} else {
+			remaining = append(remaining, args[i])
+		}
+	}
+
+	if len(remaining) == 0 {
+		printQueryHelp()
+		return
+	}
+
+	client := mustGrafanaClient()
+
+	query := strings.Join(remaining, " ")
+
+	// Built-in shortcut queries — returns query and preferred datasource type
+	query, dsType := expandShortcut(query)
+
+	// Auto-detect datasource ID if not specified
+	if dsID == 0 {
+		datasources, err := client.FetchDatasources()
+		fatal(err, "fetch datasources")
+		dsID = pickDatasource(datasources, dsType)
+		if dsID == 0 {
+			fmt.Fprintln(os.Stderr, "❌ 未找到可用数据源，使用 -d <id> 指定")
+			os.Exit(1)
+		}
+	}
+
+	result, err := client.PrometheusQuery(dsID, query)
+	fatal(err, "prometheus query")
+
+	if jsonMode {
+		data, _ := json.MarshalIndent(result, "", "  ")
+		fmt.Println(string(data))
+		return
+	}
+
+	printPromResult(result)
+}
+
+// pickDatasource selects the best datasource ID based on type hint.
+// ARMS Grafana has:
+//   - "detail" datasources: APM metrics (requests, errors, slow queries)
+//   - "apm-metrics" datasources (no "detail"): system/JVM metrics (CPU, memory, GC)
+func pickDatasource(datasources []grafana.Datasource, dsType string) int {
+	for _, ds := range datasources {
+		switch dsType {
+		case "system":
+			// Prefer non-detail apm-metrics for system/JVM metrics
+			if strings.Contains(ds.Name, "apm-metrics") && !strings.Contains(ds.Name, "detail") && !strings.Contains(ds.Name, "custom") {
+				return ds.ID
+			}
+		default:
+			// Prefer detail datasource for APM metrics
+			if strings.Contains(ds.Name, "apm-metrics-detail") {
+				return ds.ID
+			}
+		}
+	}
+	// Fallback: first non-tag datasource
+	for _, ds := range datasources {
+		if !strings.Contains(ds.Name, "arms_metrics") && !strings.Contains(ds.Name, "prom-arms") {
+			return ds.ID
+		}
+	}
+	if len(datasources) > 0 {
+		return datasources[0].ID
+	}
+	return 0
+}
+
+// expandShortcut expands shorthand query names into full PromQL.
+// Returns the expanded query and the preferred datasource type ("apm" or "system").
+func expandShortcut(query string) (string, string) {
+	parts := strings.Fields(query)
+	if len(parts) == 0 {
+		return query, "apm"
+	}
+
+	svc := ""
+	if len(parts) > 1 {
+		svc = parts[1]
+	}
+
+	switch parts[0] {
+	case "services":
+		return `count by (service) (arms_app_requests_count_raw)`, "apm"
+	case "errors":
+		if svc != "" {
+			return fmt.Sprintf(`sum by (rpc,callType) (increase(arms_app_requests_error_count_raw{service="%s"}[5m])) > 0`, svc), "apm"
+		}
+		return `sum by (service) (increase(arms_app_requests_error_count_raw[5m])) > 0`, "apm"
+	case "latency":
+		if svc != "" {
+			return fmt.Sprintf(`sum by (rpc,callType) (arms_app_requests_seconds_raw{service="%s"}) / sum by (rpc,callType) (arms_app_requests_count_raw{service="%s"}) > 0`, svc, svc), "apm"
+		}
+		return `sum by (service) (arms_app_requests_seconds_raw) / sum by (service) (arms_app_requests_count_raw) > 0`, "apm"
+	case "slow-sql":
+		if svc != "" {
+			return fmt.Sprintf(`sum by (rpc) (increase(arms_db_requests_slow_count_raw{service="%s"}[5m])) > 0`, svc), "apm"
+		}
+		return `sum by (service) (increase(arms_db_requests_slow_count_raw[5m])) > 0`, "apm"
+	case "cpu":
+		if svc != "" {
+			return fmt.Sprintf(`avg by (service,host) (100 - arms_system_cpu_idle{service="%s"})`, svc), "system"
+		}
+		return `avg by (service,host) (100 - arms_system_cpu_idle)`, "system"
+	case "mem":
+		if svc != "" {
+			return fmt.Sprintf(`avg by (service,host) (arms_system_mem_used_bytes{service="%s"} / arms_system_mem_total_bytes{service="%s"} * 100)`, svc, svc), "system"
+		}
+		return `avg by (service,host) (arms_system_mem_used_bytes / arms_system_mem_total_bytes * 100)`, "system"
+	case "gc":
+		if svc != "" {
+			return fmt.Sprintf(`sum by (host) (increase(arms_jvm_gc_delta{service="%s",gen="old"}[5m]))`, svc), "system"
+		}
+		return `sum by (service) (increase(arms_jvm_gc_delta{gen="old"}[5m]))`, "system"
+	case "qps":
+		if svc != "" {
+			return fmt.Sprintf(`sum by (rpc,callType) (rate(arms_app_requests_count_raw{service="%s"}[1m])) > 0`, svc), "apm"
+		}
+		return `sum by (service) (rate(arms_app_requests_count_raw[1m])) > 0`, "apm"
+	}
+	return query, "apm"
+}
+
+func printPromResult(result *grafana.PromQueryResult) {
+	if len(result.Data.Result) == 0 {
+		fmt.Println("查询无结果")
+		return
+	}
+
+	w := newTabWriter()
+	// Header: metric labels + value
+	fmt.Fprintf(w, "指标\t值\n")
+	fmt.Fprintf(w, "━━━━\t━━\n")
+
+	for _, sample := range result.Data.Result {
+		// Build label string
+		labels := formatMetricLabels(sample.Metric)
+		value := ""
+		if len(sample.Value) > 1 {
+			value = fmt.Sprintf("%v", sample.Value[1])
+		}
+		fmt.Fprintf(w, "%s\t%s\n", labels, value)
+	}
+	w.Flush()
+	fmt.Fprintf(os.Stderr, "\n共 %d 条结果\n", len(result.Data.Result))
+}
+
+func formatMetricLabels(m map[string]string) string {
+	if len(m) == 0 {
+		return "{}"
+	}
+	// Only show important labels, skip noisy Kubernetes/ARMS internal labels
+	var parts []string
+	priority := []string{"service", "host", "rpc", "callType", "instance", "status", "gen", "state", "area", "id"}
+	for _, k := range priority {
+		if v, ok := m[k]; ok {
+			parts = append(parts, k+"="+v)
+		}
+	}
+	if len(parts) == 0 {
+		// Fallback: show all labels if none matched priority
+		for k, v := range m {
+			if k == "__name__" {
+				continue
+			}
+			parts = append(parts, k+"="+v)
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
+func printQueryHelp() {
+	fmt.Println(`用法: tssh arms query <promql|shortcut> [-d <数据源ID>] [-j]
+
+快捷查询:
+  services                列出所有服务
+  errors [service]        错误数 (近 5 分钟)
+  latency [service]       平均响应时间
+  slow-sql [service]      慢 SQL 数量
+  qps [service]           每秒请求数
+  cpu [service]           CPU 使用率
+  mem [service]           内存使用率
+  gc [service]            Full GC 次数
+
+示例:
+  tssh arms query services
+  tssh arms query errors backend-openapi-turingapi
+  tssh arms query 'arms_app_requests_count{service="my-svc"}'`)
 }

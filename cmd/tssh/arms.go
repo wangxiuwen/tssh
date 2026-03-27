@@ -12,29 +12,20 @@ import (
 	"github.com/wangxiuwen/tssh/internal/grafana"
 )
 
-// cmdArms routes arms subcommands
-func cmdArms(args []string) {
-	if len(args) == 0 {
-		// Default: show alerts
-		cmdArmsAlerts(nil)
-		return
-	}
-	switch args[0] {
-	case "alerts":
-		cmdArmsAlerts(args[1:])
-	case "dash":
-		cmdArmsDash(args[1:])
-	case "ds":
-		cmdArmsDs(args[1:])
-	case "open":
-		cmdArmsOpen(args[1:])
-	case "query":
-		cmdArmsQuery(args[1:])
-	default:
-		fmt.Fprintf(os.Stderr, "未知子命令: %s\n用法: tssh arms [alerts|dash|ds|open|query]\n", args[0])
-		os.Exit(1)
-	}
+var armsGroup = CmdGroup{
+	Name:    "arms",
+	Desc:    "ARMS 监控: 告警、仪表盘、Prometheus 查询",
+	Default: cmdArmsAlerts,
+	Commands: []SubCmd{
+		{Name: "alerts", Desc: "查看当前触发中的告警 [-j]", Run: cmdArmsAlerts},
+		{Name: "dash", Desc: "列出/搜索仪表盘 [keyword] [-j]", Run: cmdArmsDash},
+		{Name: "ds", Desc: "列出数据源 [-j]", Run: cmdArmsDs},
+		{Name: "open", Desc: "浏览器打开仪表盘 [keyword]", Run: cmdArmsOpen},
+		{Name: "query", Desc: "Prometheus 查询 <promql|shortcut> [-j]", Run: cmdArmsQuery},
+	},
 }
+
+func cmdArms(args []string) { armsGroup.Dispatch(args) }
 
 // mustGrafanaClient creates a Grafana client.
 // Priority: explicit Grafana config → auto-discover from Aliyun ARMS API

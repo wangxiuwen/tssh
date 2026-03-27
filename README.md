@@ -47,6 +47,7 @@ When managing a fleet of hundreds of servers without public IP addresses, the tr
 - **Port Forwarding:** Local port tunnels with remote host relay support (`tssh -L 8080:remote:80 <name>`).
 - **rsync Support:** Native rsync via tunnel (`trsync`).
 - **API Rate Limiting:** Built-in rate limiter and automatic retry on API throttling.
+- **ARMS Monitoring:** One-click alert inspection, Grafana dashboard access, Prometheus queries via `tssh arms`.
 - **Shell Completion:** Bash and Zsh completion support (`tssh completion`).
 - **Execution History:** Track past commands (`tssh history`).
 - **SSH Config Generation:** Generate `~/.ssh/config` entries (`tssh ssh-config`).
@@ -198,6 +199,48 @@ tssh --profile staging ls
 tssh -p staging exec my-server uptime
 ```
 
+### ARMS Monitoring
+
+```bash
+# View firing alerts (uses Aliyun credentials, no extra config)
+tssh arms
+
+# List Grafana dashboards
+tssh arms dash
+
+# Search dashboards
+tssh arms dash API
+
+# Open dashboard in browser
+tssh arms open Application
+
+# List data sources
+tssh arms ds
+
+# Built-in shortcut queries
+tssh arms query services               # List all monitored services
+tssh arms query errors [service]        # Error count (5min)
+tssh arms query latency [service]       # Avg response time
+tssh arms query slow-sql [service]      # Slow SQL count
+tssh arms query qps [service]           # Requests per second
+tssh arms query cpu [service]           # CPU usage
+tssh arms query mem [service]           # Memory usage
+tssh arms query gc [service]            # Full GC count
+
+# Custom PromQL
+tssh arms query 'arms_app_requests_count_raw{service="my-svc"}'
+
+# JSON output
+tssh arms alerts -j
+tssh arms query -j errors my-service
+```
+
+**Configuration:** Alerts (`tssh arms`) require only Aliyun credentials. Dashboard/query commands need Grafana token:
+```bash
+export TSSH_GRAFANA_URL=https://your-grafana.grafana.aliyuncs.com
+export TSSH_GRAFANA_TOKEN=glsa_xxx
+```
+
 ### Web Management
 
 ```bash
@@ -215,7 +258,8 @@ cmd/tssh/          # CLI 入口 + 子命令
 internal/model/     # 共享类型 (Instance, Config, etc.)
 internal/config/    # 多源凭证加载
 internal/cache/     # 实例缓存 + 模式匹配
-internal/aliyun/    # ECS API 客户端 (限流 + 重试)
+internal/aliyun/    # ECS/ARMS API 客户端 (限流 + 重试)
+internal/grafana/   # Grafana HTTP API 客户端
 ```
 
 ## Environment Variables
@@ -226,6 +270,8 @@ internal/aliyun/    # ECS API 客户端 (限流 + 重试)
 | `ALIBABA_CLOUD_ACCESS_KEY_SECRET` | Aliyun AccessKey Secret |
 | `ALIBABA_CLOUD_REGION_ID` | Region (default: cn-beijing) |
 | `TSSH_DEFAULT_TIMEOUT` | Default exec timeout in seconds (default: 60) |
+| `TSSH_GRAFANA_URL` | Grafana endpoint for ARMS monitoring |
+| `TSSH_GRAFANA_TOKEN` | Grafana Service Account token |
 
 ## Performance
 

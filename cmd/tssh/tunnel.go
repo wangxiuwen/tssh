@@ -22,33 +22,23 @@ type tunnelEntry struct {
 	StartTime  string `json:"start_time"`
 }
 
-// cmdTunnel manages persistent port forwarding tunnels
-func cmdTunnel(args []string) {
-	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, `用法:
-  tssh tunnel start <name> -L <spec>   启动后台隧道
-  tssh tunnel list                     查看活跃隧道
-  tssh tunnel stop <id>                关闭隧道
-  tssh tunnel stop all                 关闭所有隧道`)
-		os.Exit(1)
-	}
-
-	switch args[0] {
-	case "start":
-		tunnelStart(args[1:])
-	case "list", "ls":
-		tunnelList()
-	case "stop":
-		if len(args) < 2 {
-			fmt.Fprintln(os.Stderr, "用法: tssh tunnel stop <id|all>")
-			os.Exit(1)
-		}
-		tunnelStop(args[1])
-	default:
-		fmt.Fprintf(os.Stderr, "未知命令: tssh tunnel %s\n", args[0])
-		os.Exit(1)
-	}
+var tunnelGroup = CmdGroup{
+	Name: "tunnel",
+	Desc: "持久化端口转发隧道管理",
+	Commands: []SubCmd{
+		{Name: "start", Desc: "启动后台隧道 <name> -L <spec>", Run: tunnelStart},
+		{Name: "list", Aliases: []string{"ls"}, Desc: "查看活跃隧道", Run: func(args []string) { tunnelList() }},
+		{Name: "stop", Desc: "关闭隧道 <id|all>", Run: func(args []string) {
+			if len(args) < 1 {
+				fmt.Fprintln(os.Stderr, "用法: tssh tunnel stop <id|all>")
+				os.Exit(1)
+			}
+			tunnelStop(args[0])
+		}},
+	},
 }
+
+func cmdTunnel(args []string) { tunnelGroup.Dispatch(args) }
 
 func tunnelStart(args []string) {
 	var target, spec string

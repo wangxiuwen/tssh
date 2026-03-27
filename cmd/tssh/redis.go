@@ -9,17 +9,30 @@ import (
 	"text/tabwriter"
 )
 
-// cmdRedis routes redis subcommands
+var redisGroup = CmdGroup{
+	Name:    "redis",
+	Desc:    "Redis 实例管理和连接",
+	Default: func(args []string) { cmdRedisConnect(nil) },
+	Commands: []SubCmd{
+		{Name: "ls", Aliases: []string{"list"}, Desc: "列出 Redis 实例 [-j]", Run: cmdRedisLs},
+		{Name: "info", Desc: "Redis 实例详情 <name|id> [-j]", Run: cmdRedisInfo},
+	},
+}
+
 func cmdRedis(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "用法: tssh redis <ls|info> [options]")
+		redisGroup.PrintHelp()
 		os.Exit(1)
+		return
 	}
+	// Check if it's a known subcommand or help flag
 	switch args[0] {
 	case "ls", "list":
 		cmdRedisLs(args[1:])
 	case "info":
 		cmdRedisInfo(args[1:])
+	case "help", "-h", "--help":
+		redisGroup.PrintHelp()
 	default:
 		// Treat as connect: tssh redis <name>
 		cmdRedisConnect(args)

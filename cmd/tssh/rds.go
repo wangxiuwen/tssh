@@ -10,19 +10,29 @@ import (
 	"text/tabwriter"
 )
 
-// cmdRDS routes rds subcommands
+var rdsGroup = CmdGroup{
+	Name: "rds",
+	Desc: "RDS 实例管理和连接",
+	Commands: []SubCmd{
+		{Name: "ls", Aliases: []string{"list"}, Desc: "列出 RDS 实例 [-j]", Run: cmdRDSLs},
+		{Name: "info", Desc: "RDS 实例详情 <name|id> [-j]", Run: cmdRDSInfo},
+	},
+}
+
 func cmdRDS(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "用法: tssh rds <ls|info> [options]")
+		rdsGroup.PrintHelp()
 		os.Exit(1)
+		return
 	}
 	switch args[0] {
 	case "ls", "list":
 		cmdRDSLs(args[1:])
 	case "info":
 		cmdRDSInfo(args[1:])
+	case "help", "-h", "--help":
+		rdsGroup.PrintHelp()
 	default:
-		// Treat as connect: tssh rds <name>
 		cmdRDSConnect(args)
 	}
 }

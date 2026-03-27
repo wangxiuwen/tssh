@@ -6,6 +6,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"text/tabwriter"
 	"time"
 
 	"github.com/wangxiuwen/tssh/internal/grafana"
@@ -142,6 +143,10 @@ func hasFlag(args []string, flags ...string) bool {
 	return false
 }
 
+func newTabWriter() *tabwriter.Writer {
+	return tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+}
+
 func getNonFlagArg(args []string) string {
 	for _, arg := range args {
 		if !strings.HasPrefix(arg, "-") {
@@ -151,11 +156,45 @@ func getNonFlagArg(args []string) string {
 	return ""
 }
 
-// Stubs for subcommands (implemented in subsequent issues)
-
+// cmdArmsDash lists or searches Grafana dashboards
 func cmdArmsDash(args []string) {
-	fmt.Fprintln(os.Stderr, "TODO: tssh arms dash")
+	jsonMode := hasFlag(args, "-j", "--json")
+	query := getNonFlagArg(args)
+
+	client := mustGrafanaClient()
+	dashboards, err := client.SearchDashboards(query)
+	fatal(err, "search dashboards")
+
+	if jsonMode {
+		data, _ := json.MarshalIndent(dashboards, "", "  ")
+		fmt.Println(string(data))
+		return
+	}
+
+	if len(dashboards) == 0 {
+		if query != "" {
+			fmt.Fprintf(os.Stderr, "未找到匹配 '%s' 的仪表盘\n", query)
+		} else {
+			fmt.Println("没有仪表盘")
+		}
+		return
+	}
+
+	w := newTabWriter()
+	fmt.Fprintf(w, "#\t名称\t标签\t文件夹\n")
+	for i, d := range dashboards {
+		tags := strings.Join(d.Tags, ",")
+		folder := d.FolderTitle
+		if folder == "" {
+			folder = "-"
+		}
+		fmt.Fprintf(w, "%d\t%s\t%s\t%s\n", i+1, d.Title, tags, folder)
+	}
+	w.Flush()
+	fmt.Fprintf(os.Stderr, "\n共 %d 个仪表盘\n", len(dashboards))
 }
+
+// Stubs for subcommands (implemented in subsequent issues)
 
 func cmdArmsDs(args []string) {
 	fmt.Fprintln(os.Stderr, "TODO: tssh arms ds")

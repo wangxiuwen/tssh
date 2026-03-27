@@ -94,6 +94,13 @@ func TestPrintAlert_DoesNotPanic(t *testing.T) {
 	printAlert(alert)
 }
 
+func TestNewTabWriter(t *testing.T) {
+	w := newTabWriter()
+	if w == nil {
+		t.Error("expected non-nil writer")
+	}
+}
+
 func TestPrintAlert_MinimalLabels(t *testing.T) {
 	alert := grafana.Alert{
 		Labels:      map[string]string{"alertname": "Test"},

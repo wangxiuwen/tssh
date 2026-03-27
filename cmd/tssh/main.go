@@ -81,6 +81,8 @@ func main() {
 		cmdRedis(filteredArgs[1:])
 	case "rds":
 		cmdRDS(filteredArgs[1:])
+	case "arms":
+		cmdArms(filteredArgs[1:])
 	case "doctor":
 		cmdDoctor()
 	case "update":
@@ -245,6 +247,12 @@ func printUsage() {
   tssh rds ls [-j]                 列出 RDS 实例
   tssh rds info <name|id> [-j]     RDS 实例详情
   tssh rds <name|id>               连接 RDS (自动端口转发)
+  tssh arms                        查看 ARMS 触发中的告警
+  tssh arms alerts [-j]            告警详情
+  tssh arms dash [keyword] [-j]    列出/搜索仪表盘
+  tssh arms ds [-j]                列出数据源
+  tssh arms open [keyword]         浏览器打开仪表盘
+  tssh arms query <promql|shortcut> Prometheus 查询
   tssh doctor                      自检
   tssh update                      自更新
   tssh ssh-config                  生成 SSH config

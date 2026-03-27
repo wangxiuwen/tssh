@@ -194,10 +194,32 @@ func cmdArmsDash(args []string) {
 	fmt.Fprintf(os.Stderr, "\n共 %d 个仪表盘\n", len(dashboards))
 }
 
-// Stubs for subcommands (implemented in subsequent issues)
-
+// cmdArmsDs lists Grafana data sources
 func cmdArmsDs(args []string) {
-	fmt.Fprintln(os.Stderr, "TODO: tssh arms ds")
+	jsonMode := hasFlag(args, "-j", "--json")
+
+	client := mustGrafanaClient()
+	datasources, err := client.FetchDatasources()
+	fatal(err, "fetch datasources")
+
+	if jsonMode {
+		data, _ := json.MarshalIndent(datasources, "", "  ")
+		fmt.Println(string(data))
+		return
+	}
+
+	if len(datasources) == 0 {
+		fmt.Println("没有数据源")
+		return
+	}
+
+	w := newTabWriter()
+	fmt.Fprintf(w, "#\tID\t名称\t类型\n")
+	for i, ds := range datasources {
+		fmt.Fprintf(w, "%d\t%d\t%s\t%s\n", i+1, ds.ID, ds.Name, ds.Type)
+	}
+	w.Flush()
+	fmt.Fprintf(os.Stderr, "\n共 %d 个数据源\n", len(datasources))
 }
 
 func cmdArmsOpen(args []string) {

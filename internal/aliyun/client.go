@@ -321,6 +321,13 @@ func (a *Client) SendFile(instanceID, localPath, remotePath, fileName string) er
 	if err != nil {
 		return fmt.Errorf("failed to read file: %w", err)
 	}
+	return a.SendFileContent(instanceID, data, remotePath, fileName)
+}
+
+// SendFileContent uploads raw bytes to an instance via Cloud Assistant.
+// Single SendFile call — Cloud Assistant limits Content (base64) to ~32KB,
+// so callers must chunk anything larger.
+func (a *Client) SendFileContent(instanceID string, data []byte, remotePath, fileName string) error {
 	content := base64.StdEncoding.EncodeToString(data)
 
 	req := ecs.CreateSendFileRequest()
@@ -331,7 +338,7 @@ func (a *Client) SendFile(instanceID, localPath, remotePath, fileName string) er
 	req.Content = content
 	req.ContentType = "Base64"
 	req.Overwrite = "true"
-	_, err = a.api.SendFile(req)
+	_, err := a.api.SendFile(req)
 	if err != nil {
 		return fmt.Errorf("SendFile failed: %w", err)
 	}

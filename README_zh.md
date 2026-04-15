@@ -29,7 +29,7 @@
 - **JSON 结构化输出：** 所有命令支持 `-j` 输出。
 - **stdin / 脚本输入：** 支持管道输入和脚本文件 (`-s`)。
 - **退出码透传：** 远程命令退出码自动传递到本地进程。
-- **免端口文件传输：** 基于 SendFile API + SCP 大文件支持 (`tssh cp`)。
+- **免端口文件传输：** SendFile API 分块传输任意大小文件 (`tssh cp`)，数百 MB 可走 OSS 中转 (`--bucket`)。
 - **端口映射：** 支持远程主机中转 (`tssh -L 8080:remote:3306 <name>`)。
 - **API 限流保护：** 内置速率限制器，200+ 台机器批量操作自动退避重试。
 - **Shell 补全：** Bash/Zsh 补全支持 (`tssh completion`)。
@@ -150,6 +150,10 @@ tssh cp my-server:/tmp/file.txt ./file.txt
 
 # 批量上传到多台实例
 tssh cp -g "prod-web" ./config.yaml :/etc/app/config.yaml
+
+# 数百 MB 走 OSS 中转 (本地需 ossutil; 远端只需 curl)
+tssh cp --bucket devops-turing ./big.tar.gz my-server:/tmp/big.tar.gz
+tssh cp --bucket devops-turing my-server:/var/log/big.log ./big.log
 
 # rsync 同步
 trsync ./dist/ my-server:/var/www/html/

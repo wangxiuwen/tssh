@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const version = "1.11.2"
+const version = "1.11.3"
 
 // Global flags parsed from os.Args before subcommand dispatch
 var globalProfile string
@@ -245,7 +245,8 @@ func printUsage() {
   tssh stop/start/reboot <name>    实例生命周期
   tssh top [-g <pat>]              实时监控面板
   tssh tunnel start/list/stop      持久化隧道管理
-  tssh web [--port <port>] [--token <tok>]  Web 管理面板
+  tssh web [--port <port>] [--token <tok>] [--bind 0.0.0.0]  Web 管理面板
+                                   默认只绑 127.0.0.1; --bind 非本地时必须有 --token
   tssh redis ls [-j]               列出 Redis 实例
   tssh redis info <name|id> [-j]   Redis 实例详情
   tssh redis <name|id>             连接 Redis (自动端口转发)

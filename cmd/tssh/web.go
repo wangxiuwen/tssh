@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -8,10 +9,17 @@ import (
 	"strings"
 )
 
-// cmdWeb starts an embedded HTTP server with a management web UI
+// cmdWeb starts an embedded HTTP server with a management web UI.
+//
+// Security: /api/exec can run arbitrary commands on all ECS instances bound
+// to the current AccessKey. Defaults are locked down to prevent accidents:
+//   - bind 127.0.0.1 only
+//   - opt-in to public bind via --bind <addr>, and only if a --token is set
+//   - token compared in constant time
 func cmdWeb(args []string) {
 	port := "8080"
 	token := ""
+	bindHost := "127.0.0.1"
 	for i := 0; i < len(args); i++ {
 		if (args[i] == "--port" || args[i] == "-p") && i+1 < len(args) {
 			port = args[i+1]
@@ -19,15 +27,31 @@ func cmdWeb(args []string) {
 		} else if (args[i] == "--token" || args[i] == "-t") && i+1 < len(args) {
 			token = args[i+1]
 			i++
+		} else if args[i] == "--bind" && i+1 < len(args) {
+			bindHost = args[i+1]
+			i++
 		}
 	}
 
-	// Auth middleware
+	// Guard: public bind without token is a remote command-execution exposure.
+	if bindHost != "127.0.0.1" && bindHost != "localhost" && token == "" {
+		fmt.Fprintf(os.Stderr, "❌ --bind %s 要求必须设置 --token (/api/exec 可执行任意命令)\n", bindHost)
+		fmt.Fprintln(os.Stderr, "   示例: tssh web --bind 0.0.0.0 --token $(openssl rand -hex 16)")
+		os.Exit(2)
+	}
+
+	tokenBytes := []byte(token)
+	// Auth middleware — constant-time compare mitigates timing attacks.
 	requireAuth := func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			if token != "" {
-				auth := r.Header.Get("Authorization")
-				if auth != "Bearer "+token && r.URL.Query().Get("token") != token {
+				got := ""
+				if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
+					got = strings.TrimPrefix(h, "Bearer ")
+				} else {
+					got = r.URL.Query().Get("token")
+				}
+				if subtle.ConstantTimeCompare([]byte(got), tokenBytes) != 1 {
 					http.Error(w, `{"error":"unauthorized"}`, 401)
 					return
 				}
@@ -128,11 +152,17 @@ func cmdWeb(args []string) {
 		fmt.Fprint(w, webHTML)
 	})
 
+	addr := bindHost + ":" + port
 	fmt.Printf("🌐 tssh web 面板已启动\n")
-	fmt.Printf("   地址: http://localhost:%s\n", port)
+	fmt.Printf("   地址: http://%s\n", addr)
+	if token == "" {
+		fmt.Printf("   认证: ⚠️  未设置 token (仅本机可访问, 如需远程加 --token 和 --bind 0.0.0.0)\n")
+	} else {
+		fmt.Printf("   认证: Bearer token 已启用\n")
+	}
 	fmt.Printf("   按 Ctrl+C 退出\n")
 
-	if err := http.ListenAndServe(":"+port, mux); err != nil {
+	if err := http.ListenAndServe(addr, mux); err != nil {
 		fmt.Fprintf(os.Stderr, "❌ %v\n", err)
 		os.Exit(1)
 	}

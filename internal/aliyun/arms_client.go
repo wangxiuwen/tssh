@@ -52,6 +52,62 @@ type ActivatedAlert struct {
 	ExpandFields    map[string]string `json:"ExpandFields"`
 }
 
+// TraceInfo is a summary entry from SearchTraceAppByPage — one per matching trace.
+type TraceInfo struct {
+	TraceID       string `json:"TraceID"`
+	Pid           string `json:"Pid"`
+	ServiceName   string `json:"ServiceName"`
+	ServiceIp     string `json:"ServiceIp"`
+	OperationName string `json:"OperationName"`
+	SpanID        string `json:"SpanId"`
+	Duration      int64  `json:"Duration"`
+	Timestamp     int64  `json:"Timestamp"`
+}
+
+// TraceTag is a K/V pair on a span.
+type TraceTag struct {
+	Key   string `json:"Key"`
+	Value string `json:"Value"`
+}
+
+// TraceLogEvent is a log line associated with a span (e.g. exception stack).
+type TraceLogEvent struct {
+	Timestamp int64      `json:"Timestamp"`
+	TagEntryList []TraceTag `json:"TagEntryList"`
+}
+
+// TraceSpan is a single span in a trace, returned by GetTrace.
+type TraceSpan struct {
+	TraceID       string          `json:"TraceID"`
+	SpanID        string          `json:"SpanId"`
+	RpcID         string          `json:"RpcId"`
+	RpcType       int             `json:"RpcType"`
+	OperationName string          `json:"OperationName"`
+	ServiceName   string          `json:"ServiceName"`
+	ServiceIp     string          `json:"ServiceIp"`
+	Pid           string          `json:"Pid"`
+	Duration      int64           `json:"Duration"`
+	Timestamp     int64           `json:"Timestamp"`
+	ResultCode    string          `json:"ResultCode"`
+	HaveStack     bool            `json:"HaveStack"`
+	TagEntryList  []TraceTag      `json:"TagEntryList"`
+	LogEventList  []TraceLogEvent `json:"LogEventList"`
+}
+
+// TraceSearchOptions are filters for SearchTraceAppByPage.
+// Tags are custom key/value filters; StartMs/EndMs are Unix millis (zero means use defaults).
+type TraceSearchOptions struct {
+	Pid           string
+	OperationName string
+	ServiceIp     string
+	Tags          map[string]string
+	MinDurationMs int64
+	StartMs       int64
+	EndMs         int64
+	PageSize      int
+	CurrentPage   int
+}
+
 // armsClientFactory creates the SDK requester — overridable in tests
 var armsClientFactory = func(region, accessKeyID, accessKeySecret string) (armsRequester, error) {
 	client, err := sdk.NewClientWithAccessKey(region, accessKeyID, accessKeySecret)
@@ -218,6 +274,87 @@ func PrometheusDirectQuery(baseURL, query string) ([]byte, error) {
 		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
 	}
 	return body, nil
+}
+
+// SearchTraces searches trace summaries by tag/pid/time filters.
+// Returns at most opts.PageSize entries. If opts.StartMs/EndMs are zero,
+// defaults to the last hour.
+func (c *ARMSClient) SearchTraces(opts TraceSearchOptions) ([]TraceInfo, int, error) {
+	now := time.Now()
+	start := opts.StartMs
+	end := opts.EndMs
+	if end == 0 {
+		end = now.UnixMilli()
+	}
+	if start == 0 {
+		start = now.Add(-1 * time.Hour).UnixMilli()
+	}
+	page := opts.CurrentPage
+	if page <= 0 {
+		page = 1
+	}
+	size := opts.PageSize
+	if size <= 0 {
+		size = 50
+	}
+
+	params := map[string]string{
+		"StartTime":   fmt.Sprintf("%d", start),
+		"EndTime":     fmt.Sprintf("%d", end),
+		"CurrentPage": fmt.Sprintf("%d", page),
+		"PageSize":    fmt.Sprintf("%d", size),
+	}
+	if opts.Pid != "" {
+		params["Pid"] = opts.Pid
+	}
+	if opts.OperationName != "" {
+		params["OperationName"] = opts.OperationName
+	}
+	if opts.ServiceIp != "" {
+		params["ServiceIp"] = opts.ServiceIp
+	}
+	if opts.MinDurationMs > 0 {
+		params["MinDuration"] = fmt.Sprintf("%d", opts.MinDurationMs)
+	}
+	i := 1
+	for k, v := range opts.Tags {
+		params[fmt.Sprintf("Tag.%d.Key", i)] = k
+		params[fmt.Sprintf("Tag.%d.Value", i)] = v
+		i++
+	}
+
+	data, err := c.call("SearchTraceAppByPage", params)
+	if err != nil {
+		return nil, 0, fmt.Errorf("SearchTraceAppByPage: %w", err)
+	}
+	var result struct {
+		PageBean struct {
+			Total      int         `json:"Total"`
+			TraceInfos []TraceInfo `json:"TraceInfos"`
+		} `json:"PageBean"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, 0, fmt.Errorf("parse response: %w", err)
+	}
+	return result.PageBean.TraceInfos, result.PageBean.Total, nil
+}
+
+// GetTrace fetches all spans for a given TraceID.
+func (c *ARMSClient) GetTrace(traceID string) ([]TraceSpan, error) {
+	if traceID == "" {
+		return nil, fmt.Errorf("TraceID 不能为空")
+	}
+	data, err := c.call("GetTrace", map[string]string{"TraceID": traceID})
+	if err != nil {
+		return nil, fmt.Errorf("GetTrace: %w", err)
+	}
+	var result struct {
+		Spans []TraceSpan `json:"Spans"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, fmt.Errorf("parse response: %w", err)
+	}
+	return result.Spans, nil
 }
 
 // Keep import references

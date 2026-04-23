@@ -14,7 +14,7 @@ import (
 
 var armsGroup = CmdGroup{
 	Name:    "arms",
-	Desc:    "ARMS 监控: 告警、仪表盘、Prometheus 查询",
+	Desc:    "ARMS 监控: 告警、仪表盘、Prometheus 查询、Trace",
 	Default: cmdArmsAlerts,
 	Commands: []SubCmd{
 		{Name: "alerts", Desc: "查看当前触发中的告警 [-j]", Run: cmdArmsAlerts},
@@ -22,6 +22,7 @@ var armsGroup = CmdGroup{
 		{Name: "ds", Desc: "列出数据源 [-j]", Run: cmdArmsDs},
 		{Name: "open", Desc: "浏览器打开仪表盘 [keyword]", Run: cmdArmsOpen},
 		{Name: "query", Desc: "Prometheus 查询 <promql|shortcut> [-j]", Run: cmdArmsQuery},
+		{Name: "trace", Desc: "查看/搜索 Trace: <traceID> | --globalId <v> | --tag k=v", Run: cmdArmsTrace},
 	},
 }
 

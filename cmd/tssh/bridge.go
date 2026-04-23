@@ -23,6 +23,10 @@ type RDSClient = aliyun.RDSClient
 type GrafanaClient = grafana.Client
 type ARMSClient = aliyun.ARMSClient
 type ActivatedAlert = aliyun.ActivatedAlert
+type TraceInfo = aliyun.TraceInfo
+type TraceSpan = aliyun.TraceSpan
+type TraceTag = aliyun.TraceTag
+type TraceSearchOptions = aliyun.TraceSearchOptions
 type Cache = cache.Cache
 
 // Function wrappers

@@ -272,6 +272,123 @@ func TestPrometheusDirectQuery_ConnectionError(t *testing.T) {
 	}
 }
 
+func TestSearchTraces_Success(t *testing.T) {
+	var captured map[string]string
+	client := &ARMSClient{
+		doRequest: func(apiName string, params map[string]string) ([]byte, error) {
+			if apiName != "SearchTraceAppByPage" {
+				t.Errorf("expected SearchTraceAppByPage, got %s", apiName)
+			}
+			captured = params
+			return []byte(`{
+				"PageBean": {
+					"Total": 2,
+					"TraceInfos": [
+						{"TraceID":"abc123","Pid":"p1","ServiceName":"svc-a","ServiceIp":"10.0.0.1","OperationName":"/api/foo","SpanId":"0.1","Duration":120,"Timestamp":1700000000000},
+						{"TraceID":"def456","Pid":"p2","ServiceName":"svc-b","ServiceIp":"10.0.0.2","OperationName":"/api/bar","SpanId":"0.1","Duration":80,"Timestamp":1700000001000}
+					]
+				}
+			}`), nil
+		},
+		region: "cn-beijing",
+	}
+
+	traces, total, err := client.SearchTraces(TraceSearchOptions{
+		Tags:     map[string]string{"globalId": "xyz"},
+		Pid:      "app-1",
+		PageSize: 10,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if total != 2 {
+		t.Errorf("expected total 2, got %d", total)
+	}
+	if len(traces) != 2 {
+		t.Fatalf("expected 2 traces, got %d", len(traces))
+	}
+	if traces[0].TraceID != "abc123" {
+		t.Errorf("unexpected TraceID: %s", traces[0].TraceID)
+	}
+	if captured["Pid"] != "app-1" {
+		t.Errorf("expected Pid=app-1, got %s", captured["Pid"])
+	}
+	if captured["Tag.1.Key"] != "globalId" || captured["Tag.1.Value"] != "xyz" {
+		t.Errorf("expected Tag.1.Key=globalId/Value=xyz, got %s=%s", captured["Tag.1.Key"], captured["Tag.1.Value"])
+	}
+	if captured["StartTime"] == "" || captured["EndTime"] == "" {
+		t.Error("StartTime/EndTime should be auto-filled")
+	}
+}
+
+func TestSearchTraces_Error(t *testing.T) {
+	client := newTestARMSClient("", fmt.Errorf("boom"))
+	_, _, err := client.SearchTraces(TraceSearchOptions{Tags: map[string]string{"k": "v"}})
+	if err == nil {
+		t.Error("expected error")
+	}
+}
+
+func TestSearchTraces_InvalidJSON(t *testing.T) {
+	client := newTestARMSClient("not-json", nil)
+	_, _, err := client.SearchTraces(TraceSearchOptions{})
+	if err == nil {
+		t.Error("expected parse error")
+	}
+}
+
+func TestGetTrace_Success(t *testing.T) {
+	var captured map[string]string
+	client := &ARMSClient{
+		doRequest: func(apiName string, params map[string]string) ([]byte, error) {
+			if apiName != "GetTrace" {
+				t.Errorf("expected GetTrace, got %s", apiName)
+			}
+			captured = params
+			return []byte(`{
+				"Spans": [
+					{"TraceID":"abc","SpanId":"s1","RpcId":"0","OperationName":"entry","ServiceName":"svc-a","ServiceIp":"10.0.0.1","Duration":200,"Timestamp":1700000000000,"ResultCode":"00","TagEntryList":[{"Key":"globalId","Value":"xyz"}]},
+					{"TraceID":"abc","SpanId":"s2","RpcId":"0.1","OperationName":"db_call","ServiceName":"svc-a","ServiceIp":"10.0.0.1","Duration":50,"Timestamp":1700000000050,"ResultCode":"00"}
+				]
+			}`), nil
+		},
+		region: "cn-beijing",
+	}
+
+	spans, err := client.GetTrace("abc")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(spans) != 2 {
+		t.Fatalf("expected 2 spans, got %d", len(spans))
+	}
+	if spans[0].OperationName != "entry" {
+		t.Errorf("unexpected op: %s", spans[0].OperationName)
+	}
+	if len(spans[0].TagEntryList) != 1 || spans[0].TagEntryList[0].Key != "globalId" {
+		t.Errorf("unexpected tags: %+v", spans[0].TagEntryList)
+	}
+	if captured["TraceID"] != "abc" {
+		t.Errorf("expected TraceID=abc, got %s", captured["TraceID"])
+	}
+}
+
+func TestGetTrace_EmptyTraceID(t *testing.T) {
+	client := newTestARMSClient(`{"Spans":[]}`, nil)
+	_, err := client.GetTrace("")
+	if err == nil {
+		t.Error("expected error for empty TraceID")
+	}
+}
+
+func TestGetTrace_APIError(t *testing.T) {
+	client := newTestARMSClient("", fmt.Errorf("network"))
+	_, err := client.GetTrace("abc")
+	if err == nil {
+		t.Error("expected error")
+	}
+}
+
 func TestARMSClient_RateLimit(t *testing.T) {
 	calls := 0
 	client := &ARMSClient{

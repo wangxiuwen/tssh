@@ -218,3 +218,81 @@ func TestPrintAlert_MinimalLabels(t *testing.T) {
 	// Should not panic even with minimal data
 	printAlert(alert)
 }
+
+func TestFormatMs(t *testing.T) {
+	tests := []struct {
+		in   int64
+		want string
+	}{
+		{0, "0ms"},
+		{500, "500ms"},
+		{999, "999ms"},
+		{1000, "1.00s"},
+		{1250, "1.25s"},
+		{12345, "12.35s"},
+	}
+	for _, tt := range tests {
+		if got := formatMs(tt.in); got != tt.want {
+			t.Errorf("formatMs(%d) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestIsInterestingTag(t *testing.T) {
+	keep := []string{"globalId", "http.url", "http.status", "db.statement", "userId", "requestId", "errorCode", "traceId"}
+	drop := []string{"agentVersion", "clusterName", "envName", "pid"}
+	for _, k := range keep {
+		if !isInterestingTag(k) {
+			t.Errorf("expected %q to be interesting", k)
+		}
+	}
+	for _, k := range drop {
+		if isInterestingTag(k) {
+			t.Errorf("expected %q NOT to be interesting", k)
+		}
+	}
+}
+
+func TestSpanIcon(t *testing.T) {
+	cases := []struct {
+		span TraceSpan
+		want string
+	}{
+		{TraceSpan{RpcType: 0, ResultCode: "00"}, "🌐"},
+		{TraceSpan{RpcType: 2, ResultCode: "00"}, "🗄️ "},
+		{TraceSpan{RpcType: 3, ResultCode: "SUCCESS"}, "📨"},
+		{TraceSpan{RpcType: 0, ResultCode: "500"}, "❌"},
+	}
+	for _, c := range cases {
+		if got := spanIcon(c.span); got != c.want {
+			t.Errorf("spanIcon(%+v) = %q, want %q", c.span, got, c.want)
+		}
+	}
+}
+
+func TestPrintTraceSpans_DoesNotPanic(t *testing.T) {
+	spans := []TraceSpan{
+		{TraceID: "abc", RpcID: "0", OperationName: "entry", ServiceName: "svc", ServiceIp: "1.1.1.1", Duration: 100, ResultCode: "00",
+			TagEntryList: []TraceTag{{Key: "globalId", Value: "xyz"}, {Key: "agentVersion", Value: "x"}}},
+		{TraceID: "abc", RpcID: "0.1", OperationName: "db", ServiceName: "svc", ServiceIp: "1.1.1.1", Duration: 50, ResultCode: "500"},
+	}
+	printTraceSpans("abc", spans)
+}
+
+func TestPrintTraceSummary_DoesNotPanic(t *testing.T) {
+	traces := []TraceInfo{
+		{TraceID: "abc", ServiceName: "a", ServiceIp: "1.1.1.1", OperationName: "/x", Duration: 120, Timestamp: 1700000000000},
+		{TraceID: "def", ServiceName: "b", ServiceIp: "1.1.1.2", OperationName: "/y/z/very/long/path/for/truncation/test", Duration: 1500, Timestamp: 1700000001000},
+	}
+	printTraceSummary(traces)
+}
+
+func TestFormatTags(t *testing.T) {
+	// Single-key case is order-stable, multi-key we just check non-empty.
+	if got := formatTags(map[string]string{"globalId": "abc"}); got != "globalId=abc" {
+		t.Errorf("single: got %q", got)
+	}
+	if got := formatTags(map[string]string{"a": "1", "b": "2"}); got == "" {
+		t.Error("multi: should not be empty")
+	}
+}

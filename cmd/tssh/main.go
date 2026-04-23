@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const version = "1.8.0"
+const version = "1.10.0"
 
 // Global flags parsed from os.Args before subcommand dispatch
 var globalProfile string
@@ -253,6 +253,9 @@ func printUsage() {
   tssh arms ds [-j]                列出数据源
   tssh arms open [keyword]         浏览器打开仪表盘
   tssh arms query <promql|shortcut> Prometheus 查询
+  tssh arms trace <TraceID>        查看 trace 完整 span 列表
+  tssh arms trace --globalId <v>   按 globalId 搜索 trace
+  tssh arms trace --tag k=v        按自定义 tag 搜索 trace
   tssh doctor                      自检
   tssh update                      自更新
   tssh ssh-config                  生成 SSH config

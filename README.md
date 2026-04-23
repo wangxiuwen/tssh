@@ -47,7 +47,7 @@ When managing a fleet of hundreds of servers without public IP addresses, the tr
 - **Port Forwarding:** Local port tunnels with remote host relay support (`tssh -L 8080:remote:80 <name>`).
 - **rsync Support:** Native rsync via tunnel (`trsync`).
 - **API Rate Limiting:** Built-in rate limiter and automatic retry on API throttling.
-- **ARMS Monitoring:** One-click alert inspection, Grafana dashboard access, Prometheus queries via `tssh arms`.
+- **ARMS Monitoring:** One-click alert inspection, Grafana dashboard access, Prometheus queries, and distributed trace lookup by TraceID / custom tag (e.g. `globalId`) via `tssh arms`.
 - **Shell Completion:** Bash and Zsh completion support (`tssh completion`).
 - **Execution History:** Track past commands (`tssh history`).
 - **SSH Config Generation:** Generate `~/.ssh/config` entries (`tssh ssh-config`).
@@ -230,9 +230,21 @@ tssh arms query gc [service]            # Full GC count
 # Custom PromQL
 tssh arms query 'arms_app_requests_count_raw{service="my-svc"}'
 
+# Distributed Trace — view spans of a specific trace
+tssh arms trace 0a1b2c3d4e5f6708091a2b3c4d5e6f70
+
+# Find the trace whose spans carry tag globalId=<value>
+# (previously only possible via ARMS console UI)
+tssh arms trace --globalId req-abc-123
+
+# Arbitrary custom tags, plus filters
+tssh arms trace --tag userId=42 --since 2h --limit 20
+tssh arms trace --tag bizCode=ORDER --pid <app-pid>
+
 # JSON output
 tssh arms alerts -j
 tssh arms query -j errors my-service
+tssh arms trace -j 0a1b2c3d...
 ```
 
 **Configuration:** Alerts (`tssh arms`) require only Aliyun credentials. Dashboard/query commands need Grafana token:

@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/wangxiuwen/tssh/internal/shared"
 )
 
 // tunnelEntry represents a persistent tunnel
@@ -22,10 +24,10 @@ type tunnelEntry struct {
 	StartTime  string `json:"start_time"`
 }
 
-var tunnelGroup = CmdGroup{
+var tunnelGroup = shared.CmdGroup{
 	Name: "tunnel",
 	Desc: "持久化端口转发隧道管理",
-	Commands: []SubCmd{
+	Commands: []shared.SubCmd{
 		{Name: "start", Desc: "启动后台隧道 <name> -L <spec>", Run: tunnelStart},
 		{Name: "list", Aliases: []string{"ls"}, Desc: "查看活跃隧道", Run: func(args []string) { tunnelList() }},
 		{Name: "stop", Desc: "关闭隧道 <id|all>", Run: func(args []string) {

@@ -8,12 +8,14 @@ import (
 	"os"
 	"strings"
 	"text/tabwriter"
+
+	"github.com/wangxiuwen/tssh/internal/shared"
 )
 
-var rdsGroup = CmdGroup{
+var rdsGroup = shared.CmdGroup{
 	Name: "rds",
 	Desc: "RDS 实例管理和连接",
-	Commands: []SubCmd{
+	Commands: []shared.SubCmd{
 		{Name: "ls", Aliases: []string{"list"}, Desc: "列出 RDS 实例 [-j]", Run: cmdRDSLs},
 		{Name: "info", Desc: "RDS 实例详情 <name|id> [-j]", Run: cmdRDSInfo},
 	},

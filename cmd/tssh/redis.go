@@ -7,13 +7,15 @@ import (
 	"os"
 	"strings"
 	"text/tabwriter"
+
+	"github.com/wangxiuwen/tssh/internal/shared"
 )
 
-var redisGroup = CmdGroup{
+var redisGroup = shared.CmdGroup{
 	Name:    "redis",
 	Desc:    "Redis 实例管理和连接",
 	Default: func(args []string) { cmdRedisConnect(nil) },
-	Commands: []SubCmd{
+	Commands: []shared.SubCmd{
 		{Name: "ls", Aliases: []string{"list"}, Desc: "列出 Redis 实例 [-j]", Run: cmdRedisLs},
 		{Name: "info", Desc: "Redis 实例详情 <name|id> [-j]", Run: cmdRedisInfo},
 	},

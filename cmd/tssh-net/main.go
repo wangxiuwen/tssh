@@ -19,7 +19,7 @@ import (
 	"github.com/wangxiuwen/tssh/internal/runtime"
 )
 
-const version = "1.16.0-refactor.14"
+const version = "1.16.0-refactor.15"
 
 func main() {
 	profile := ""

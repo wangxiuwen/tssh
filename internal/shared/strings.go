@@ -2,7 +2,9 @@ package shared
 
 import (
 	"encoding/base64"
+	"fmt"
 	"strings"
+	"time"
 )
 
 // DecodeOutput tries to base64-decode s; falls back to the original string
@@ -36,4 +38,19 @@ func DefaultStr(s, dflt string) string {
 		return dflt
 	}
 	return s
+}
+
+// FormatDuration — short human duration (30s / 5m / 2.5h / 3.2天). Used all
+// over arms / health / top where a single-cell render needs to fit tightly.
+func FormatDuration(d time.Duration) string {
+	if d < time.Minute {
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	}
+	if d < time.Hour {
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	}
+	if d < 24*time.Hour {
+		return fmt.Sprintf("%.1fh", d.Hours())
+	}
+	return fmt.Sprintf("%.1f天", d.Hours()/24)
 }

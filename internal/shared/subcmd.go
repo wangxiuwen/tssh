@@ -1,4 +1,4 @@
-package main
+package shared
 
 import (
 	"fmt"
@@ -6,7 +6,9 @@ import (
 	"strings"
 )
 
-// SubCmd defines a subcommand in a command group.
+// SubCmd defines a subcommand in a command group. Shared across command
+// families (arms, redis, rds, ...) so they all get the same dispatch +
+// help-printing UX without duplicating the logic.
 type SubCmd struct {
 	Name    string              // primary name
 	Aliases []string            // alternative names (e.g. "ls" for "list")
@@ -35,15 +37,13 @@ func (g *CmdGroup) Dispatch(args []string) {
 	}
 
 	name := args[0]
-
-	// help flags
 	if name == "help" || name == "-h" || name == "--help" {
 		g.PrintHelp()
 		return
 	}
 
 	for _, cmd := range g.Commands {
-		if cmd.Name == name || contains(cmd.Aliases, name) {
+		if cmd.Name == name || containsString(cmd.Aliases, name) {
 			cmd.Run(args[1:])
 			return
 		}
@@ -80,7 +80,7 @@ func (g *CmdGroup) PrintHelp() {
 	}
 }
 
-func contains(ss []string, s string) bool {
+func containsString(ss []string, s string) bool {
 	for _, v := range ss {
 		if v == s {
 			return true

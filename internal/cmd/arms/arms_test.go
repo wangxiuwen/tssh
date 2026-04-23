@@ -1,10 +1,11 @@
-package main
+package arms
 
 import (
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/wangxiuwen/tssh/internal/aliyun"
 	"github.com/wangxiuwen/tssh/internal/grafana"
 )
 
@@ -188,7 +189,7 @@ func TestFormatMetricLabels(t *testing.T) {
 }
 
 func TestPrintActivatedAlert_DoesNotPanic(t *testing.T) {
-	alert := ActivatedAlert{
+	alert := aliyun.ActivatedAlert{
 		AlertName:       "TestAlert",
 		Severity:        "critical",
 		Status:          "Active",
@@ -204,7 +205,7 @@ func TestPrintActivatedAlert_DoesNotPanic(t *testing.T) {
 }
 
 func TestPrintActivatedAlert_MinimalFields(t *testing.T) {
-	alert := ActivatedAlert{
+	alert := aliyun.ActivatedAlert{
 		AlertName: "Simple",
 	}
 	printActivatedAlert(alert)
@@ -255,13 +256,13 @@ func TestIsInterestingTag(t *testing.T) {
 
 func TestSpanIcon(t *testing.T) {
 	cases := []struct {
-		span TraceSpan
+		span aliyun.TraceSpan
 		want string
 	}{
-		{TraceSpan{RpcType: 0, ResultCode: "00"}, "🌐"},
-		{TraceSpan{RpcType: 2, ResultCode: "00"}, "🗄️ "},
-		{TraceSpan{RpcType: 3, ResultCode: "SUCCESS"}, "📨"},
-		{TraceSpan{RpcType: 0, ResultCode: "500"}, "❌"},
+		{aliyun.TraceSpan{RpcType: 0, ResultCode: "00"}, "🌐"},
+		{aliyun.TraceSpan{RpcType: 2, ResultCode: "00"}, "🗄️ "},
+		{aliyun.TraceSpan{RpcType: 3, ResultCode: "SUCCESS"}, "📨"},
+		{aliyun.TraceSpan{RpcType: 0, ResultCode: "500"}, "❌"},
 	}
 	for _, c := range cases {
 		if got := spanIcon(c.span); got != c.want {
@@ -271,16 +272,16 @@ func TestSpanIcon(t *testing.T) {
 }
 
 func TestPrintTraceSpans_DoesNotPanic(t *testing.T) {
-	spans := []TraceSpan{
+	spans := []aliyun.TraceSpan{
 		{TraceID: "abc", RpcID: "0", OperationName: "entry", ServiceName: "svc", ServiceIp: "1.1.1.1", Duration: 100, ResultCode: "00",
-			TagEntryList: []TraceTag{{Key: "globalId", Value: "xyz"}, {Key: "agentVersion", Value: "x"}}},
+			TagEntryList: []aliyun.TraceTag{{Key: "globalId", Value: "xyz"}, {Key: "agentVersion", Value: "x"}}},
 		{TraceID: "abc", RpcID: "0.1", OperationName: "db", ServiceName: "svc", ServiceIp: "1.1.1.1", Duration: 50, ResultCode: "500"},
 	}
 	printTraceSpans("abc", spans)
 }
 
 func TestPrintTraceSummary_DoesNotPanic(t *testing.T) {
-	traces := []TraceInfo{
+	traces := []aliyun.TraceInfo{
 		{TraceID: "abc", ServiceName: "a", ServiceIp: "1.1.1.1", OperationName: "/x", Duration: 120, Timestamp: 1700000000000},
 		{TraceID: "def", ServiceName: "b", ServiceIp: "1.1.1.2", OperationName: "/y/z/very/long/path/for/truncation/test", Duration: 1500, Timestamp: 1700000001000},
 	}

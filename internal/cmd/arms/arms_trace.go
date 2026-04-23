@@ -1,4 +1,4 @@
-package main
+package arms
 
 import (
 	"encoding/json"
@@ -7,6 +7,9 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/wangxiuwen/tssh/internal/aliyun"
+	"github.com/wangxiuwen/tssh/internal/shared"
 )
 
 // cmdArmsTrace dispatches on flags:
@@ -90,7 +93,7 @@ func cmdArmsTrace(args []string) {
 
 	if traceID != "" {
 		spans, err := client.GetTrace(traceID)
-		fatal(err, "GetTrace")
+		shared.Fatal(err, "GetTrace")
 		if jsonMode {
 			data, _ := json.MarshalIndent(spans, "", "  ")
 			fmt.Println(string(data))
@@ -102,7 +105,7 @@ func cmdArmsTrace(args []string) {
 
 	// Search mode
 	now := time.Now()
-	opts := TraceSearchOptions{
+	opts := aliyun.TraceSearchOptions{
 		Pid:           pid,
 		OperationName: opName,
 		ServiceIp:     serviceIP,
@@ -113,7 +116,7 @@ func cmdArmsTrace(args []string) {
 		CurrentPage:   1,
 	}
 	traces, total, err := client.SearchTraces(opts)
-	fatal(err, "SearchTraces")
+	shared.Fatal(err, "SearchTraces")
 
 	if jsonMode {
 		data, _ := json.MarshalIndent(traces, "", "  ")
@@ -131,7 +134,7 @@ func cmdArmsTrace(args []string) {
 		tr := traces[0]
 		fmt.Fprintf(os.Stderr, "🔎 匹配到 1 条 trace: %s (%s)\n", tr.TraceID, tr.ServiceName)
 		spans, err := client.GetTrace(tr.TraceID)
-		fatal(err, "GetTrace")
+		shared.Fatal(err, "GetTrace")
 		printTraceSpans(tr.TraceID, spans)
 		return
 	}
@@ -141,20 +144,20 @@ func cmdArmsTrace(args []string) {
 	printTraceSummary(traces)
 }
 
-func printTraceSummary(traces []TraceInfo) {
+func printTraceSummary(traces []aliyun.TraceInfo) {
 	w := newTabWriter()
 	fmt.Fprintf(w, "#\tTime\tDuration\tService\tIP\tOperation\tTraceID\n")
 	for i, t := range traces {
 		ts := time.UnixMilli(t.Timestamp).Format("15:04:05")
 		fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			i+1, ts, formatMs(t.Duration), t.ServiceName, t.ServiceIp,
-			truncateStr(t.OperationName, 40), t.TraceID)
+			shared.TruncateStr(t.OperationName, 40), t.TraceID)
 	}
 	w.Flush()
 	fmt.Fprintln(os.Stderr, "\n提示: tssh arms trace <TraceID> 查看完整 span 列表")
 }
 
-func printTraceSpans(traceID string, spans []TraceSpan) {
+func printTraceSpans(traceID string, spans []aliyun.TraceSpan) {
 	if len(spans) == 0 {
 		fmt.Fprintf(os.Stderr, "未找到 trace %s 的 span\n", traceID)
 		os.Exit(1)
@@ -180,13 +183,13 @@ func printTraceSpans(traceID string, spans []TraceSpan) {
 		}
 		for _, tag := range s.TagEntryList {
 			if isInterestingTag(tag.Key) {
-				fmt.Printf("%s    %s=%s\n", indent, tag.Key, truncateStr(tag.Value, 120))
+				fmt.Printf("%s    %s=%s\n", indent, tag.Key, shared.TruncateStr(tag.Value, 120))
 			}
 		}
 	}
 }
 
-func spanIcon(s TraceSpan) string {
+func spanIcon(s aliyun.TraceSpan) string {
 	if s.ResultCode != "" && s.ResultCode != "00" && s.ResultCode != "SUCCESS" {
 		return "❌"
 	}

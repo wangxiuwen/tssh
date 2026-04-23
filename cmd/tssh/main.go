@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const version = "1.15.1"
+const version = "1.15.2"
 
 // Global flags parsed from os.Args before subcommand dispatch
 var globalProfile string
@@ -99,6 +99,8 @@ func main() {
 		cmdKS(filteredArgs[1:])
 	case "kf":
 		cmdKF(filteredArgs[1:])
+	case "logs":
+		cmdLogs(filteredArgs[1:])
 	case "doctor":
 		cmdDoctor()
 	case "update":
@@ -286,6 +288,7 @@ func printUsage() {
   tssh browser <name> [url...]     独立 Chrome 窗口 + SOCKS5, 直接访问内网 Web
   tssh ks <jump> <svc> [-n <ns>]   k8s service 一眼诊断 (pod/连接/TIME_WAIT)
   tssh kf <jump> <svc:port>[=<local>] ...  一次起多个 k8s port-forward + 可选 --browser
+  tssh logs <jump> <svc> [-n <ns>] [-f]    聚合多 pod 日志流, 每行带 pod 前缀
   tssh doctor                      自检
   tssh update                      自更新
   tssh ssh-config                  生成 SSH config

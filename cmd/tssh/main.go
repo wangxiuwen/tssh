@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const version = "1.15.0"
+const version = "1.15.1"
 
 // Global flags parsed from os.Args before subcommand dispatch
 var globalProfile string
@@ -97,6 +97,8 @@ func main() {
 		cmdBrowser(filteredArgs[1:])
 	case "ks":
 		cmdKS(filteredArgs[1:])
+	case "kf":
+		cmdKF(filteredArgs[1:])
 	case "doctor":
 		cmdDoctor()
 	case "update":
@@ -283,6 +285,7 @@ func printUsage() {
   sudo tssh vpn <name> --cidr ...  L3 TUN 透明代理 (Kafka/MQ 也吃, 需 tun2socks)
   tssh browser <name> [url...]     独立 Chrome 窗口 + SOCKS5, 直接访问内网 Web
   tssh ks <jump> <svc> [-n <ns>]   k8s service 一眼诊断 (pod/连接/TIME_WAIT)
+  tssh kf <jump> <svc:port>[=<local>] ...  一次起多个 k8s port-forward + 可选 --browser
   tssh doctor                      自检
   tssh update                      自更新
   tssh ssh-config                  生成 SSH config

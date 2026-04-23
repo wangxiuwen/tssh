@@ -68,6 +68,8 @@ cmd/
 - [x] core.Runtime.StartPortForward + StartSocatRelay (v1.16.0-refactor.6)
 - [x] **`cmd/tssh-k8s/main.go` 独立 binary 编出来** (4.4MB, 主 tssh 14.4MB,
       69% 缩减). 但 runtime 还是 stub — Phase 3 才能真跑.
+- [x] `internal/cmd/net/socks.go` + test (v1.16.0-refactor.11)
+      session.StartRemoteSocks 从 cmd/tssh/socks.go 挪出来供各 group 共享
 - [ ] `internal/cmd/net/` (socks/fwd/run/shell/vpn/browser)
 - [ ] `internal/cmd/db/` (redis/rds)
 - [ ] `internal/cmd/arms/`

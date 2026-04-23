@@ -31,14 +31,20 @@ func cmdBrowser(args []string) {
 	localPort := 0 // auto by default; avoids colliding with a running `tssh socks`
 	remotePort := 19080
 	chromePath := ""
+	profileOverride := ""
 	var target string
 	var urls []string
-	var jsonMode bool
+	var jsonMode, fresh bool
 
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "-j", "--json":
 			jsonMode = true
+		case "--fresh", "--reset":
+			// Blow away the persistent profile dir, effectively starting over.
+			// Handy when someone wants a clean session or the profile got
+			// corrupted.
+			fresh = true
 		case "-p", "--port":
 			if i+1 >= len(args) {
 				fmt.Fprintln(os.Stderr, "❌ -p 需要端口号")
@@ -57,6 +63,13 @@ func cmdBrowser(args []string) {
 				os.Exit(2)
 			}
 			chromePath = args[i+1]
+			i++
+		case "--profile":
+			if i+1 >= len(args) {
+				fmt.Fprintln(os.Stderr, "❌ --profile 需要一个目录路径")
+				os.Exit(2)
+			}
+			profileOverride = args[i+1]
 			i++
 		case "-h", "--help":
 			printBrowserHelp()
@@ -118,10 +131,21 @@ func cmdBrowser(args []string) {
 	}
 	defer stop()
 
-	// Dedicated user-data-dir per-invocation — avoids ever touching the
-	// user's real profile. Lives under tmpdir + timestamp so repeated runs
-	// don't clash.
-	profileDir := filepath.Join(os.TempDir(), fmt.Sprintf("tssh-browser-%s-%d", safeFilename(inst.Name), time.Now().Unix()))
+	// Dedicated user-data-dir: Chrome's multi-process model means only a
+	// standalone --user-data-dir reliably honours --proxy-server; sharing the
+	// user's main profile sends flags to the existing Chrome process which
+	// then ignores proxy changes. BUT we persist this dir across runs so the
+	// user only has to log in once, not every single invocation — that was
+	// the user's pain point with the original --fresh-tmp-dir design.
+	profileDir := profileOverride
+	if profileDir == "" {
+		home, _ := os.UserHomeDir()
+		profileDir = filepath.Join(home, ".tssh", "browser-profiles", safeFilename(inst.Name))
+	}
+	if fresh {
+		// Remove before create so cookies/history from last session are gone.
+		_ = os.RemoveAll(profileDir)
+	}
 	if err := os.MkdirAll(profileDir, 0700); err != nil {
 		cleanupSocks()
 		stop()
@@ -163,9 +187,8 @@ func cmdBrowser(args []string) {
 				_ = c.Process.Kill()
 			}
 		}
-		// Profile dir has cookies / cache; clean it up so the user isn't left
-		// with pile of temp dirs over time.
-		_ = os.RemoveAll(profileDir)
+		// PRESERVE profileDir — cookies/logged-in state are the whole point
+		// of persisting it between runs. Use --fresh next time to nuke.
 	}
 	defer cleanupChrome()
 
@@ -248,7 +271,7 @@ func safeFilename(s string) string {
 }
 
 func printBrowserHelp() {
-	fmt.Println(`用法: tssh browser <name> [url ...] [-p <port>] [--chrome <path>] [-j]
+	fmt.Println(`用法: tssh browser <name> [url ...] [-p <port>] [--chrome <path>] [--fresh] [-j]
 
 打开一个带独立 profile 的 Chrome/Chromium/Edge 窗口, 所有请求走远端 ECS
 的 SOCKS5 代理. 取代 "kubectl port-forward 一堆端口然后本地浏览器访问"
@@ -256,13 +279,16 @@ func printBrowserHelp() {
 
 效果等于 "在那台 ECS 上打开浏览器":
   - 窗口里访问 Kubernetes Dashboard / Grafana / 内网 CMDB / 任何内网 Web
-  - 和主浏览器完全隔离 (独立 --user-data-dir, 不动日常 cookies/extensions)
-  - 关掉窗口或 Ctrl+C → tssh 自动清 SOCKS / 远端 microsocks / profile dir
+  - 和主浏览器的 profile 完全隔离 (Chrome 技术限制: 代理必须独立 profile)
+  - 登录状态持久化到 ~/.tssh/browser-profiles/<name>/, 登一次就记住,
+    下次 tssh browser 同一台机直接进, 不用重填密码
 
 选项:
   [url ...]               启动时直接打开的页面 (可多个)
   -p, --port <port>       本地 SOCKS5 端口 (默认: 自动分配空闲端口)
   --chrome, --browser <p> Chrome/Chromium/Edge 可执行路径 (默认自动探测)
+  --profile <dir>         自定义 profile 目录 (默认: ~/.tssh/browser-profiles/<name>/)
+  --fresh, --reset        清空并重建 profile (忘记所有 cookies / 已登录状态)
   -j, --json              浏览器开启后 stdout 一行 JSON (AI/脚本用)
 
 自动探测顺序:
@@ -280,7 +306,10 @@ JSON 输出:
    "chrome_path":"...","opened_urls":[],"pid":5678}
 
 注意:
-  - 隔离 profile 意味着浏览器里的登录状态/书签不会同步到主浏览器, 这正是我们要的
-  - 如果内网站点要 Kubernetes dashboard 的 kubeconfig cookie,
-    那在这个独立 profile 里再登一次即可`)
+  - Chrome 要求: 只有独立 --user-data-dir 才能保证 --proxy-server 生效.
+    主 Chrome 在跑时, 如果复用它的 profile, 新进程会通过 IPC 合并到主
+    进程, 代理参数被忽略. 所以独立 profile 不是洁癖, 是技术要求.
+  - profile 持久化, 登一次后下次 tssh browser 同机就免登.
+  - 忘记 cookies 或想彻底清: tssh browser <name> --fresh
+  - 要完全自定义: --profile /path/to/dir`)
 }

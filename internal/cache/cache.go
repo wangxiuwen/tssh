@@ -35,7 +35,9 @@ func NewWithProfile(profile string) *Cache {
 	return &Cache{dir: dir, file: filepath.Join(dir, file), profile: profile}
 }
 
-func (c *Cache) Ensure() error      { return os.MkdirAll(c.dir, 0755) }
+// Ensure creates the cache dir with 0700 — it stores instance names, IPs, and
+// the profile-scoped history which reveals command usage; other users shouldn't list it.
+func (c *Cache) Ensure() error      { return os.MkdirAll(c.dir, 0700) }
 func (c *Cache) HistoryDir() string { return c.dir }
 func (c *Cache) Exists() bool       { _, err := os.Stat(c.file); return err == nil }
 

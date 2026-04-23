@@ -196,7 +196,8 @@ func loadTunnels() []tunnelEntry {
 }
 
 func saveTunnels(entries []tunnelEntry) {
-	os.MkdirAll(filepath.Dir(tunnelsFile()), 0755)
+	// ~/.tssh holds credentials, history, browser cookies — 0700 so other users can't list it.
+	os.MkdirAll(filepath.Dir(tunnelsFile()), 0700)
 	data, _ := json.Marshal(entries)
 	// 0600 to match cache/history; tunnels reveal instance IDs + port maps.
 	// Atomic write via temp+rename so a mid-save crash doesn't corrupt the list.

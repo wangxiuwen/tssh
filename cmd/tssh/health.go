@@ -214,7 +214,7 @@ echo "net_estab:${estab:-0}"
 	}
 
 	if outputFile != "" {
-		err := os.WriteFile(outputFile, []byte(output), 0644)
+		err := os.WriteFile(outputFile, []byte(output), 0600)
 		fatal(err, "write output")
 		fmt.Fprintf(os.Stderr, "✅ 报告已保存到 %s\n", outputFile)
 	} else {

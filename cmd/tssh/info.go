@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	osexec "os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -129,7 +130,35 @@ func cmdDoctor() {
 		}
 	}
 
-	// 4. Version + profiles
+	// 4. Sensitive dir permissions: ~/.tssh (credentials, history, browser cookies)
+	//    and ~/.cache/tssh (instance metadata, history) should be 0700.
+	fmt.Print("  目录权限... ")
+	checkDirPerm := func() (string, bool) {
+		home, _ := os.UserHomeDir()
+		var issues []string
+		for _, d := range []string{filepath.Join(home, ".tssh"), filepath.Join(home, ".cache", "tssh")} {
+			st, err := os.Stat(d)
+			if err != nil {
+				continue
+			}
+			mode := st.Mode().Perm()
+			if mode&0077 != 0 {
+				issues = append(issues, fmt.Sprintf("%s=%04o", d, mode))
+			}
+		}
+		if len(issues) == 0 {
+			return "✅ 0700", true
+		}
+		return "⚠️  group/other 可读: " + strings.Join(issues, ", ") + " (修复: chmod 700)", false
+	}
+	if status, ok := checkDirPerm(); ok {
+		fmt.Println(status)
+	} else {
+		fmt.Println(status)
+		allOK = false
+	}
+
+	// 5. Version + profiles
 	fmt.Printf("  tssh 版本... %s (%s/%s)\n", version, runtime.GOOS, runtime.GOARCH)
 	profiles := ListProfiles()
 	if len(profiles) > 0 {

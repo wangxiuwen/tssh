@@ -251,7 +251,7 @@ func cmdRedisConnect(args []string) {
 	fatal(err, "create client")
 
 	socatPort := 19900
-	socatCmd := fmt.Sprintf("nohup socat TCP-LISTEN:%d,fork,reuseaddr TCP:%s:%d &>/dev/null & echo $!", socatPort, found.ConnectionDomain, remotePort)
+	socatCmd := fmt.Sprintf("nohup socat TCP-LISTEN:%d,fork,reuseaddr TCP:'%s':%d &>/dev/null & echo $!", socatPort, shellQuote(found.ConnectionDomain), remotePort)
 	result, err := aliyunClient.RunCommand(jumpHost.ID, socatCmd, 10)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "⚙️  安装 socat...")

@@ -257,7 +257,10 @@ func cmdRDSConnect(args []string) {
 	localPort := 13306
 	socatPort := 19901
 	host := found.ConnectionString
-	socatCmd := fmt.Sprintf("nohup socat TCP-LISTEN:%d,fork,reuseaddr TCP:%s:3306 &>/dev/null & echo $!", socatPort, host)
+	// host comes from Aliyun RDS ConnectionString; unlikely to be hostile but
+	// shell-quoting it costs nothing and keeps the pattern consistent with
+	// connect.go / fwd.go.
+	socatCmd := fmt.Sprintf("nohup socat TCP-LISTEN:%d,fork,reuseaddr TCP:'%s':3306 &>/dev/null & echo $!", socatPort, shellQuote(host))
 	result, err := aliyunClient.RunCommand(jumpHost.ID, socatCmd, 10)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "⚙️  安装 socat...")

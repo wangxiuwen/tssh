@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const version = "1.12.0"
+const version = "1.12.1"
 
 // Global flags parsed from os.Args before subcommand dispatch
 var globalProfile string
@@ -85,6 +85,8 @@ func main() {
 		cmdArms(filteredArgs[1:])
 	case "socks":
 		cmdSocks(filteredArgs[1:])
+	case "fwd":
+		cmdFwd(filteredArgs[1:])
 	case "doctor":
 		cmdDoctor()
 	case "update":
@@ -265,6 +267,7 @@ func printUsage() {
   tssh arms trace --globalId <v>   按 globalId 搜索 trace
   tssh arms trace --tag k=v        按自定义 tag 搜索 trace
   tssh socks <name> [-p 1080]      起本地 SOCKS5 代理 (Spring/HTTP/JDBC 全自动走远端 VPC)
+  tssh fwd <host:port|rm-xxx|r-xxx> [--via <jump>] [-p <local>]  零配置单端口转发
   tssh doctor                      自检
   tssh update                      自更新
   tssh ssh-config                  生成 SSH config

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/wangxiuwen/tssh/internal/shared"
 )
 
 // chunkSize is the per-call payload size for chunked transfers. Cloud Assistant
@@ -128,8 +130,10 @@ func chunkedDownload(client *AliyunClient, instanceID, remotePath, localPath str
 }
 
 // shellQuote escapes a path for safe inclusion inside single quotes.
+// Thin wrapper over shared.ShellQuote so every cmd/tssh caller can migrate
+// at its own pace while the implementation lives in one place.
 func shellQuote(s string) string {
-	return strings.ReplaceAll(s, "'", `'\''`)
+	return shared.ShellQuote(s)
 }
 
 // ----- OSS-relay transfer -----

@@ -351,6 +351,12 @@ func cmdCopy(args []string) {
 
 // doBatchCopy uploads a file to multiple instances
 func doBatchCopy(pattern, localPath, remoteDst string) {
+	// Empty pattern would expand `tssh cp -g '' ...` to "copy to every
+	// instance" silently. Refuse — this mode overwrites remote files.
+	if strings.TrimSpace(pattern) == "" {
+		fmt.Fprintln(os.Stderr, "❌ -g 需要非空 pattern (空 pattern 会匹配全部实例, 拒绝批量拷贝)")
+		os.Exit(2)
+	}
 	config := mustLoadConfig()
 	client, err := NewAliyunClient(config)
 	fatal(err, "create client")

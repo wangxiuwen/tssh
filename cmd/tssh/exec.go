@@ -157,10 +157,23 @@ func cmdExec(args []string) {
 	var targets []Instance
 
 	if opts.tagFilter != "" {
-		// Tag-based targeting
+		// Tag-based targeting. `tag:=` with empty key+value would match all;
+		// require a non-empty key segment.
+		tagKey := strings.SplitN(opts.tagFilter, "=", 2)[0]
+		if strings.TrimSpace(tagKey) == "" {
+			fmt.Fprintln(os.Stderr, "❌ --tag 需要 key 非空 (否则匹配全部, 拒绝执行)")
+			os.Exit(2)
+		}
 		instances, _ := cache.Load()
 		targets = FilterInstances(instances, "tag:"+opts.tagFilter)
 	} else if opts.grepMode {
+		// Empty pattern → FilterInstances returns ALL instances. In `-g` mode
+		// that silently expands to "run on every server in the account" —
+		// refuse instead of blasting a potentially dangerous command everywhere.
+		if strings.TrimSpace(opts.pattern) == "" {
+			fmt.Fprintln(os.Stderr, "❌ -g 需要非空 pattern (空 pattern 会匹配全部实例, 拒绝执行)")
+			os.Exit(2)
+		}
 		targets, _ = cache.FindByPattern(opts.pattern)
 	} else {
 		targetName := ""

@@ -15,9 +15,10 @@ import (
 // can reach it — no VPC or security-group exposure risk.
 //
 // Usage:
-//   tssh socks <name>                 local 1080 → remote microsocks
-//   tssh socks <name> -p 1081         custom local port
-//   tssh socks <name> --remote 19080  override remote listen port
+//
+//	tssh socks <name>                 local 1080 → remote microsocks
+//	tssh socks <name> -p 1081         custom local port
+//	tssh socks <name> --remote 19080  override remote listen port
 func cmdSocks(args []string) {
 	localPort := 1080
 	remotePort := 19080

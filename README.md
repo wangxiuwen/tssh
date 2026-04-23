@@ -45,6 +45,7 @@ When managing a fleet of hundreds of servers without public IP addresses, the tr
 - **Exit Code Passthrough:** Remote command exit codes propagate to the local process.
 - **File Transfer:** Send files via Cloud Assistant API (`tssh cp`), with SCP fallback for large files (>32KB).
 - **Port Forwarding:** Local port tunnels with remote host relay support (`tssh -L 8080:remote:80 <name>`).
+- **Dev "VPN" suite:** Access internal services from localhost without a bastion SSH key — `tssh fwd` (one port, zero config), `tssh run` (multi-port + env injection, Spring-friendly), `tssh socks` (SOCKS5 proxy), `tssh shell` (subshell with preset `ALL_PROXY`/`JAVA_TOOL_OPTIONS`), `tssh vpn` (L3 TUN transparent proxy for Kafka/MQ/gRPC).
 - **rsync Support:** Native rsync via tunnel (`trsync`).
 - **API Rate Limiting:** Built-in rate limiter and automatic retry on API throttling.
 - **ARMS Monitoring:** One-click alert inspection, Grafana dashboard access, Prometheus queries, and distributed trace lookup by TraceID / custom tag (e.g. `globalId`) via `tssh arms`.
@@ -204,6 +205,53 @@ tssh -L 8080:localhost:80 my-server
 # Tunnel through remote host (via relay)
 tssh -L 8080:internal-db:3306 my-server
 ```
+
+### Dev "VPN" — access internal services from localhost
+
+Five commands progressively cover the "I'm on my laptop but need to hit prod
+VPC" problem without requiring a bastion SSH key or VPN client:
+
+```bash
+# 1. One port, zero config. Auto-pick a same-VPC ECS as jump host.
+tssh fwd rds-prod.internal:3306         # any host:port
+tssh fwd 10.0.0.5:8080                  # any internal IP
+tssh fwd rm-2zxxxxxx                    # RDS instance ID (auto-resolve VPC)
+tssh fwd r-bpxxxxxx                     # Redis instance ID
+#   📡 127.0.0.1:54321  →  rds-prod.internal:3306  (via prod-jump)
+
+# 2. Multiple ports at once + inject env vars into a child process.
+#    Perfect for `./gradlew bootRun` with a bunch of dependencies.
+tssh run --to mysql=rm-xxx,redis=r-xxx,kafka=10.0.0.3:9092 -- ./gradlew bootRun
+#   Child sees: MYSQL_HOST/MYSQL_PORT/MYSQL_ADDR, REDIS_*, KAFKA_*
+#   application.yml uses ${MYSQL_HOST:localhost}:${MYSQL_PORT:3306} and "just works"
+
+# 3. Generic SOCKS5 proxy (remote microsocks + port-forward).
+tssh socks prod-jump
+#   🧦 SOCKS5: 127.0.0.1:1080 (via prod-jump)
+#   curl --socks5-hostname 127.0.0.1:1080 https://internal.example
+
+# 4. Subshell with ALL_PROXY / JAVA_TOOL_OPTIONS preset.
+#    curl / git / go / JVM HTTP/JDBC all transparent.
+tssh shell prod-jump
+(prod-jump) $ ./gradlew bootRun     # JDBC/HTTP go through prod-jump
+(prod-jump) $ exit                  # auto-cleanup
+
+# 5. Real L3 TUN proxy — Kafka/MQ/gRPC all work (SOCKS can't help those).
+#    Needs `go install github.com/xjasonlyu/tun2socks/v2@latest` once.
+sudo tssh vpn prod-jump --cidr 10.0.0.0/16
+sudo tssh vpn prod-jump --cidr 10.0.0.0/16,172.16.0.0/12
+```
+
+| Command | Config? | sudo? | Covers |
+|---|---|---|---|
+| `tssh fwd` | none | no | one service |
+| `tssh run` | `--to key=v` | no | many services, env injection for child |
+| `tssh socks` | none | no | SOCKS5 for manual clients |
+| `tssh shell` | none | no | JVM/HTTP/CLI, drops you in a subshell |
+| `tssh vpn`  | `--cidr` | yes | any protocol (Kafka/MQ/gRPC) via TUN |
+
+All five clean up automatically on Ctrl-C (remote microsocks/socat, local
+port-forwards, routes).
 
 ### Multi-Account
 

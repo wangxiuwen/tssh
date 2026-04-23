@@ -34,13 +34,13 @@ func TestResolveFwdTarget_IPPort(t *testing.T) {
 
 func TestResolveFwdTarget_InvalidPort(t *testing.T) {
 	cases := []string{
-		"host:99999",    // port out of range
-		"host:-1",       // negative
-		"host:0",        // zero
-		"host:abc",      // non-numeric
-		"host:",         // empty port
-		"noport",        // no colon
-		":",             // bare colon
+		"host:99999", // port out of range
+		"host:-1",    // negative
+		"host:0",     // zero
+		"host:abc",   // non-numeric
+		"host:",      // empty port
+		"noport",     // no colon
+		":",          // bare colon
 	}
 	for _, c := range cases {
 		if _, _, _, err := resolveFwdTarget(nil, c); err == nil {

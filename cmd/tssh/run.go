@@ -18,6 +18,7 @@ import (
 //	tssh run --to mysql=rm-xxx,redis=r-xxx,kafka=10.0.0.3:9092 -- ./gradlew bootRun
 //
 // In the child:
+//
 //	MYSQL_HOST=127.0.0.1  MYSQL_PORT=54321  MYSQL_ADDR=127.0.0.1:54321
 //	REDIS_HOST=127.0.0.1  REDIS_PORT=54322  REDIS_ADDR=127.0.0.1:54322
 //	KAFKA_HOST=127.0.0.1  KAFKA_PORT=54323  KAFKA_ADDR=127.0.0.1:54323

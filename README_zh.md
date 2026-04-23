@@ -31,6 +31,7 @@
 - **退出码透传：** 远程命令退出码自动传递到本地进程。
 - **免端口文件传输：** SendFile API 分块传输任意大小文件 (`tssh cp`)，数百 MB 可走 OSS 中转 (`--bucket`)。
 - **端口映射：** 支持远程主机中转 (`tssh -L 8080:remote:3306 <name>`)。
+- **研发"临时 VPN"全家桶：** 本机访问 VPC 内网, 不用 SSH key/VPN 客户端 — `tssh fwd` (单端口零配置), `tssh run` (多端口 + env 注入, Spring 场景), `tssh socks` (SOCKS5 代理), `tssh shell` (子 shell 预置代理环境变量), `tssh vpn` (L3 TUN 透明代理, Kafka/MQ/gRPC 都吃).
 - **API 限流保护：** 内置速率限制器，200+ 台机器批量操作自动退避重试。
 - **Shell 补全：** Bash/Zsh 补全支持 (`tssh completion`)。
 - **执行历史：** 查看过去的执行记录 (`tssh history`)。
@@ -185,6 +186,51 @@ tssh -L 8080:localhost:80 my-server
 # 通过远程主机中转
 tssh -L 8080:internal-db:3306 my-server
 ```
+
+### 研发"临时 VPN" — 从本机访问 VPC 内网服务
+
+5 条命令覆盖 "我在笔记本上, 需要连到 prod VPC" 的全部场景, 不用 SSH key、
+不用 VPN 客户端:
+
+```bash
+# 1. 单端口, 零配置. tssh 自动挑同 VPC 的 ECS 做跳板.
+tssh fwd rds-prod.internal:3306      # 任意 host:port
+tssh fwd 10.0.0.5:8080               # 任意内网 IP
+tssh fwd rm-2zxxxxxx                 # RDS 实例 ID (自动查 VPC)
+tssh fwd r-bpxxxxxx                  # Redis 实例 ID
+#   📡 127.0.0.1:54321 → rds-prod.internal:3306 (via prod-jump)
+
+# 2. 一次多端口 + 把环境变量注入子进程 — Spring 场景最常用.
+tssh run --to mysql=rm-xxx,redis=r-xxx,kafka=10.0.0.3:9092 -- ./gradlew bootRun
+#   子进程 env:  MYSQL_HOST/PORT/ADDR, REDIS_*, KAFKA_*
+#   application.yml 用 ${MYSQL_HOST:localhost}:${MYSQL_PORT:3306} 即可
+
+# 3. 通用 SOCKS5 代理 (远端起 microsocks, 本地转发).
+tssh socks prod-jump
+#   🧦 SOCKS5: 127.0.0.1:1080 (via prod-jump)
+#   curl --socks5-hostname 127.0.0.1:1080 https://internal.example
+
+# 4. 起一个子 shell, 预置 ALL_PROXY / JAVA_TOOL_OPTIONS.
+#    curl / git / go / JVM 的 HTTP 和 JDBC 透明走远端.
+tssh shell prod-jump
+(prod-jump) $ ./gradlew bootRun      # JDBC/HTTP 走 prod-jump
+(prod-jump) $ exit                   # 自动清理
+
+# 5. L3 TUN 透明代理 — Kafka/MQ/gRPC 等 SOCKS 搞不定的协议.
+#    需要一次性装: go install github.com/xjasonlyu/tun2socks/v2@latest
+sudo tssh vpn prod-jump --cidr 10.0.0.0/16
+sudo tssh vpn prod-jump --cidr 10.0.0.0/16,172.16.0.0/12
+```
+
+| 命令 | 配置 | sudo | 适用 |
+|---|---|---|---|
+| `tssh fwd` | 无 | 否 | 单服务 |
+| `tssh run` | `--to key=v` | 否 | 多服务 + 子进程 env 注入 |
+| `tssh socks` | 无 | 否 | 自己的客户端手动配代理 |
+| `tssh shell` | 无 | 否 | JVM/HTTP/CLI, 进子 shell 直接用 |
+| `tssh vpn`  | `--cidr` | 是 | 任意协议 (Kafka/MQ/gRPC), TUN 层 |
+
+Ctrl-C 都会反向清理 (远端 microsocks/socat、本地转发、路由).
 
 ### 多账号
 

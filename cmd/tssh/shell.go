@@ -155,15 +155,15 @@ func buildShellEnv(parent []string, localPort int, host, shellName string) []str
 
 	// Strip anything we're about to overwrite so the values come out clean.
 	drop := map[string]bool{
-		"ALL_PROXY":         true,
-		"all_proxy":         true,
-		"HTTP_PROXY":        true,
-		"http_proxy":        true,
-		"HTTPS_PROXY":       true,
-		"https_proxy":       true,
-		"NO_PROXY":          true,
-		"no_proxy":          true,
-		"TSSH_SHELL_HOST":   true,
+		"ALL_PROXY":       true,
+		"all_proxy":       true,
+		"HTTP_PROXY":      true,
+		"http_proxy":      true,
+		"HTTPS_PROXY":     true,
+		"https_proxy":     true,
+		"NO_PROXY":        true,
+		"no_proxy":        true,
+		"TSSH_SHELL_HOST": true,
 	}
 	// JAVA_TOOL_OPTIONS: append rather than replace — CI systems sometimes ship
 	// harmless flags in it (e.g. -XshowSettings:vm).

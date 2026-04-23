@@ -35,13 +35,13 @@ func TestParseRunSpec_WhitespaceTolerant(t *testing.T) {
 
 func TestParseRunSpec_Errors(t *testing.T) {
 	cases := map[string]string{
-		"":           "empty",
-		"=rm-xxx":    "missing key",
-		"mysql=":     "missing value",
-		"foo bar":    "no equals",
-		"a=1,a=2":    "duplicate key",
-		"1foo=x":     "key starting with digit",
-		"foo.bar=x":  "invalid char in key",
+		"":          "empty",
+		"=rm-xxx":   "missing key",
+		"mysql=":    "missing value",
+		"foo bar":   "no equals",
+		"a=1,a=2":   "duplicate key",
+		"1foo=x":    "key starting with digit",
+		"foo.bar=x": "invalid char in key",
 	}
 	for spec, why := range cases {
 		if _, err := parseRunSpec(spec); err == nil {
@@ -52,10 +52,10 @@ func TestParseRunSpec_Errors(t *testing.T) {
 
 func TestEnvPrefix(t *testing.T) {
 	cases := map[string]string{
-		"mysql":         "MYSQL",
-		"redis-cache":   "REDIS_CACHE",
-		"kafka_broker":  "KAFKA_BROKER",
-		"api_v2":        "API_V2",
+		"mysql":        "MYSQL",
+		"redis-cache":  "REDIS_CACHE",
+		"kafka_broker": "KAFKA_BROKER",
+		"api_v2":       "API_V2",
 	}
 	for in, want := range cases {
 		if got := envPrefix(in); got != want {

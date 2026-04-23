@@ -42,14 +42,15 @@ cmd/
 
 ## 分阶段计划 (每轮 loop 推进一步)
 
-### Phase 1 — 共用辅助抽离 (进行中)
+### Phase 1 — 共用辅助抽离 ✓ 完成
 - [x] 建 `internal/shared/`
-- [x] 挪 `ShellQuote` (v1.15.4 PoC)
-- [ ] 挪 `findFreePort / findFreePortInRange → shared.FindFreePort / FindFreePortInRange`
-- [ ] 挪 `parseTimeoutSec → shared.ParseTimeoutSec`
-- [ ] 挪 `decodeOutput → shared.DecodeOutput` (base64 + trim)
-- [ ] 挪 `truncateStr / isTerminal / execCommand / fileExists → shared.*`
-- [ ] 挪 `fatal / fatalMsg → shared.Fatal / FatalMsg` (需 stderr 注入)
+- [x] ShellQuote (v1.16.0-refactor.1)
+- [x] FindFreePort / FindFreePortInRange (v1.16.0-refactor.2)
+- [x] ParseTimeoutSec (v1.16.0-refactor.2)
+- [x] DecodeOutput / TruncateStr / IsTerminal / FileExists (v1.16.0-refactor.2)
+- [x] Fatal / FatalMsg (v1.16.0-refactor.3)
+- [x] SleepDuration / SleepMs / ExecCommand (v1.16.0-refactor.3)
+- [x] 建 `internal/core/` + Runtime 契约 (v1.16.0-refactor.3)
 
 原则: cmd/tssh 保留 wrapper delegate 到 shared, 向后兼容.
 

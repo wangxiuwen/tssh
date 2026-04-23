@@ -11,7 +11,7 @@ import (
 	"github.com/wangxiuwen/tssh/internal/shared"
 )
 
-const version = "1.16.0-refactor.2"
+const version = "1.16.0-refactor.3"
 
 // Global flags parsed from os.Args before subcommand dispatch
 var globalProfile string
@@ -426,9 +426,7 @@ func truncateStr(s string, maxLen int) string {
 }
 func isTerminal() bool { return shared.IsTerminal() }
 
-func fatal(err error, msg string) {
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "❌ %s: %v\n", msg, err)
-		os.Exit(1)
-	}
-}
+// fatal / fatalMsg — thin wrappers over shared.Fatal / shared.FatalMsg.
+// Same message format so existing test expectations don't shift.
+func fatal(err error, msg string) { shared.Fatal(err, msg) }
+func fatalMsg(msg string)         { shared.FatalMsg(msg) }

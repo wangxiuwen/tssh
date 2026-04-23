@@ -286,12 +286,7 @@ func routeAddCmd(tun, cidr string) (add, del []string) {
 	return
 }
 
-// fatalMsg prints a human-readable reason and exits 2 — reserved for
-// user-actionable preflight errors (sudo missing, platform unsupported, etc).
-func fatalMsg(msg string) {
-	fmt.Fprintln(os.Stderr, "❌ "+msg)
-	os.Exit(2)
-}
+// fatalMsg — declared in main.go as a wrapper over shared.FatalMsg now.
 
 func printVPNHelp() {
 	fmt.Println(`用法: sudo tssh vpn <name> --cidr <a/b[,c/d,...]> [--tun <dev>]

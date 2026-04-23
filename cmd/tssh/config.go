@@ -123,7 +123,11 @@ func saveHistory(command string, results interface{}) {
 	data, _ := json.Marshal(entries)
 	// 0600: history records every command run on every ECS — often contains
 	// prod paths, internal IPs, sometimes tokens in command args.
-	os.WriteFile(histFile, data, 0600)
+	// Atomic write: Ctrl-C mid-save shouldn't leave a corrupt history.
+	tmp := histFile + ".tmp"
+	if err := os.WriteFile(tmp, data, 0600); err == nil {
+		os.Rename(tmp, histFile)
+	}
 }
 
 // --- Symlink tools ---

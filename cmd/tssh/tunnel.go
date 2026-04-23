@@ -197,7 +197,11 @@ func saveTunnels(entries []tunnelEntry) {
 	os.MkdirAll(filepath.Dir(tunnelsFile()), 0755)
 	data, _ := json.Marshal(entries)
 	// 0600 to match cache/history; tunnels reveal instance IDs + port maps.
-	os.WriteFile(tunnelsFile(), data, 0600)
+	// Atomic write via temp+rename so a mid-save crash doesn't corrupt the list.
+	tmp := tunnelsFile() + ".tmp"
+	if err := os.WriteFile(tmp, data, 0600); err == nil {
+		os.Rename(tmp, tunnelsFile())
+	}
 }
 
 func cleanDeadTunnels(entries []tunnelEntry) []tunnelEntry {

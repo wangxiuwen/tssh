@@ -52,9 +52,17 @@ func (c *Cache) Save(instances []model.Instance) error {
 		return err
 	}
 	data, _ := json.MarshalIndent(instances, "", "  ")
+	// Atomic write: os.WriteFile truncates in place; Ctrl-C or a crash
+	// mid-write leaves a corrupt JSON that fails Load() on every future run
+	// until the user notices and re-syncs. Write to a temp file then rename
+	// (rename is atomic on POSIX).
 	// 0600: instance list contains internal IPs + tags + EIPs — inventory
 	// data other users on a shared host shouldn't see.
-	return os.WriteFile(c.file, data, 0600)
+	tmp := c.file + ".tmp"
+	if err := os.WriteFile(tmp, data, 0600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, c.file)
 }
 
 func (c *Cache) Load() ([]model.Instance, error) {

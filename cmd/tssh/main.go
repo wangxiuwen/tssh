@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const version = "1.11.8"
+const version = "1.11.9"
 
 // Global flags parsed from os.Args before subcommand dispatch
 var globalProfile string
@@ -242,7 +242,7 @@ func printUsage() {
   tssh tail <name> <path>          远程日志跟踪
   tssh watch [-g <pat>] <cmd>      定时轮询执行
   tssh diff -g <pat> <cmd>         多机输出对比
-  tssh stop/start/reboot <name>    实例生命周期
+  tssh stop/start/reboot [-y] <name>   实例生命周期 (stop/reboot 默认二次确认, -y 跳过)
   tssh top [-g <pat>]              实时监控面板
   tssh tunnel start/list/stop      持久化隧道管理
   tssh web [--port <port>] [--token <tok>] [--bind 0.0.0.0]  Web 管理面板

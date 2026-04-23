@@ -1,21 +1,33 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
 // cmdLifecycle handles stop/start/reboot instance commands
 func cmdLifecycle(action string, args []string) {
-	if len(args) == 0 {
-		fmt.Fprintf(os.Stderr, "用法: tssh %s <name>\n", action)
+	assumeYes := false
+	var positional []string
+	for _, a := range args {
+		switch a {
+		case "-y", "--yes":
+			assumeYes = true
+		default:
+			positional = append(positional, a)
+		}
+	}
+	if len(positional) == 0 {
+		fmt.Fprintf(os.Stderr, "用法: tssh %s [-y] <name>\n", action)
 		os.Exit(1)
 	}
 
 	cache := getCache()
 	ensureCache(cache)
-	inst := resolveInstanceOrExit(cache, args[0])
+	inst := resolveInstanceOrExit(cache, positional[0])
 
 	config := mustLoadConfig()
 	client, err := NewAliyunClient(config)
@@ -25,6 +37,21 @@ func cmdLifecycle(action string, args []string) {
 		"stop":   "关机",
 		"start":  "开机",
 		"reboot": "重启",
+	}
+
+	// Destructive ops get a confirmation prompt by default. Skip with -y or
+	// when stdin is not a TTY (pipelines / scripts). `start` is non-destructive
+	// so we never prompt.
+	if (action == "stop" || action == "reboot") && !assumeYes && isTerminal() {
+		fmt.Fprintf(os.Stderr, "⚠️  即将%s实例 %s (%s) — 当前状态 %s\n", actionNames[action], inst.Name, inst.ID, inst.Status)
+		fmt.Fprint(os.Stderr, "继续? [y/N] ")
+		reader := bufio.NewReader(os.Stdin)
+		ans, _ := reader.ReadString('\n')
+		ans = strings.TrimSpace(strings.ToLower(ans))
+		if ans != "y" && ans != "yes" {
+			fmt.Fprintln(os.Stderr, "已取消")
+			os.Exit(1)
+		}
 	}
 
 	fmt.Printf("⚡ %s %s (%s)...\n", actionNames[action], inst.Name, inst.ID)

@@ -435,6 +435,30 @@ func TestCacheFindByTag_LoadError(t *testing.T) {
 	}
 }
 
+// Regression: Save used to truncate-in-place via os.WriteFile; a crash mid-write
+// could leave a partial JSON that failed Load() on every subsequent run. Verify
+// no leftover .tmp sibling (temp-then-rename is atomic on POSIX).
+func TestCacheSave_NoTempLeftBehind(t *testing.T) {
+	dir := t.TempDir()
+	c := &Cache{dir: dir, file: filepath.Join(dir, "instances.json")}
+	for i := 0; i < 3; i++ {
+		if err := c.Save([]model.Instance{{ID: "i-001", Name: "x"}}); err != nil {
+			t.Fatalf("save: %v", err)
+		}
+	}
+	if _, err := os.Stat(c.file + ".tmp"); !os.IsNotExist(err) {
+		t.Errorf("expected no .tmp sibling, got err=%v", err)
+	}
+	// File must still be readable/parseable after 3 saves.
+	insts, err := c.Load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(insts) != 1 || insts[0].ID != "i-001" {
+		t.Errorf("bad contents: %+v", insts)
+	}
+}
+
 // Regression: cache contains internal IPs + tags + EIPs, other users on the
 // host shouldn't see it. Verify mode 0600.
 func TestCacheSave_Mode0600(t *testing.T) {

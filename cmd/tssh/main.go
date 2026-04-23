@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const version = "1.12.2"
+const version = "1.12.3"
 
 // Global flags parsed from os.Args before subcommand dispatch
 var globalProfile string
@@ -89,6 +89,8 @@ func main() {
 		cmdFwd(filteredArgs[1:])
 	case "run":
 		cmdRun(filteredArgs[1:])
+	case "shell":
+		cmdShell(filteredArgs[1:])
 	case "doctor":
 		cmdDoctor()
 	case "update":
@@ -271,6 +273,7 @@ func printUsage() {
   tssh socks <name> [-p 1080]      起本地 SOCKS5 代理 (Spring/HTTP/JDBC 全自动走远端 VPC)
   tssh fwd <host:port|rm-xxx|r-xxx> [--via <jump>] [-p <local>]  零配置单端口转发
   tssh run --to k=v,k=v -- <cmd> 并行起多端口 + 把 K_HOST/K_PORT/K_ADDR 注入子进程
+  tssh shell <name>                子 shell + SOCKS5 env (curl/JVM/go 全自动走远端 VPC)
   tssh doctor                      自检
   tssh update                      自更新
   tssh ssh-config                  生成 SSH config

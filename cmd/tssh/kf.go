@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/wangxiuwen/tssh/internal/shared"
 )
 
 // cmdKF — "kubectl port-forward but for all my services at once". Runs
@@ -159,7 +161,7 @@ func cmdKF(args []string) {
 		os.Stdout.Sync()
 	} else {
 		fmt.Fprintln(os.Stderr)
-		fmt.Fprintf(os.Stderr, "🔌 k8s port-forward 就绪 via %s (ns=%s)\n", inst.Name, defaultStr(namespace, "default"))
+		fmt.Fprintf(os.Stderr, "🔌 k8s port-forward 就绪 via %s (ns=%s)\n", inst.Name, shared.DefaultStr(namespace, "default"))
 		for _, t := range targets {
 			fmt.Fprintf(os.Stderr, "   http://127.0.0.1:%d  →  svc/%s:%d\n", t.localPort, t.svc, t.svcPort)
 		}

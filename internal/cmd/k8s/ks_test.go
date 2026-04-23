@@ -1,4 +1,4 @@
-package main
+package k8s
 
 import (
 	"strings"
@@ -67,14 +67,7 @@ func TestParseKSOutput_NoPods(t *testing.T) {
 	}
 }
 
-func TestDefaultStr(t *testing.T) {
-	if defaultStr("", "x") != "x" {
-		t.Errorf("empty should fall back")
-	}
-	if defaultStr("y", "x") != "y" {
-		t.Errorf("non-empty should pass through")
-	}
-}
+// TestDefaultStr moved to internal/shared with the DefaultStr function.
 
 func TestKSHelp_NoPanic(t *testing.T) {
 	printKSHelp()

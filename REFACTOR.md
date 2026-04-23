@@ -61,8 +61,10 @@ cmd/
 
 迁移进度:
 - [x] `internal/cmd/k8s/events.go` + test (v1.16.0-refactor.4, PoC)
-  - cmd/tssh/events.go 变成 6 行 delegate 到 k8s.Events(appRuntime, args)
-- [ ] `internal/cmd/k8s/ks.go` + kf.go + logs.go
+- [x] `internal/cmd/k8s/logs.go` + test (v1.16.0-refactor.5)
+- [x] `internal/cmd/k8s/ks.go` + test (v1.16.0-refactor.5)
+- [x] shared.DefaultStr 抽离 (ks + kf 共用)
+- [ ] `internal/cmd/k8s/kf.go` (依赖 portforward/socat 基础设施, 先抽底层)
 - [ ] `internal/cmd/net/` (socks/fwd/run/shell/vpn/browser)
 - [ ] `internal/cmd/db/` (redis/rds)
 - [ ] `internal/cmd/arms/`

@@ -27,3 +27,13 @@ func TruncateStr(s string, maxLen int) string {
 	}
 	return s
 }
+
+// DefaultStr returns dflt when s is empty, otherwise s. Lets callers avoid
+// the empty-string-looks-like-data problem (e.g. blank CPU from a missing
+// metrics-server should read "-" not nothing).
+func DefaultStr(s, dflt string) string {
+	if s == "" {
+		return dflt
+	}
+	return s
+}

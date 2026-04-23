@@ -1,82 +1,65 @@
 package main
 
 import (
-	"fmt"
-	"os"
+	"sync"
 
+	"github.com/wangxiuwen/tssh/internal/aliyun"
 	"github.com/wangxiuwen/tssh/internal/core"
 	"github.com/wangxiuwen/tssh/internal/model"
+	tssruntime "github.com/wangxiuwen/tssh/internal/runtime"
 )
 
-// tsshRuntime is the cmd/tssh-side implementation of core.Runtime. It wires
-// the legacy package-level helpers (mustLoadConfig / resolveInstance /
-// getCache / NewAliyunClient) into the interface that internal/cmd/* groups
-// depend on. Groups stay decoupled from cmd/tssh — when we add tssh-k8s et
-// al., each one will build its own concrete runtime the same way.
-type tsshRuntime struct{}
+// appRuntime — lazy-initialised so globalProfile (parsed in main() from
+// --profile) is populated before we bind it into the runtime. Package-init
+// time is too early: at that point globalProfile is still "".
+//
+// We build on internal/runtime (shared with tssh-k8s) and inject hooks for
+// interactive session + port-forward + socat relay, which still live in
+// cmd/tssh. As those move to internal packages the hooks shrink and slim
+// binaries inherit the capability for free.
+var (
+	appRuntimeOnce sync.Once
+	appRuntimeVal  core.Runtime
+)
 
-// appRuntime is the process-wide core.Runtime. Groups (when they get wired
-// up) read this to do config/instance/exec work. Named appRuntime because
-// plain "runtime" collides with the Go stdlib package of that name, which
-// several of our files (vpn/browser/info/...) already import.
-var appRuntime core.Runtime = &tsshRuntime{}
+// appRuntimeProxy defers real construction until first use so main() has
+// time to parse --profile. Implements core.Runtime by pass-through.
+type appRuntimeProxy struct{}
 
-func (r *tsshRuntime) LoadConfig() *model.Config {
-	return mustLoadConfig()
+func (appRuntimeProxy) LoadConfig() *model.Config      { return realAppRuntime().LoadConfig() }
+func (appRuntimeProxy) ResolveInstance(n string) *model.Instance {
+	return realAppRuntime().ResolveInstance(n)
+}
+func (appRuntimeProxy) LoadAllInstances() []model.Instance { return realAppRuntime().LoadAllInstances() }
+func (appRuntimeProxy) ExecOneShot(id, c string, t int) (*core.ExecResult, error) {
+	return realAppRuntime().ExecOneShot(id, c, t)
+}
+func (appRuntimeProxy) ExecInteractive(id, c string) error {
+	return realAppRuntime().ExecInteractive(id, c)
+}
+func (appRuntimeProxy) StartPortForward(id string, lp, rp int) (func(), error) {
+	return realAppRuntime().StartPortForward(id, lp, rp)
+}
+func (appRuntimeProxy) StartSocatRelay(j, h string, p int) (int, func(), error) {
+	return realAppRuntime().StartSocatRelay(j, h, p)
 }
 
-func (r *tsshRuntime) ResolveInstance(name string) *model.Instance {
-	c := getCache()
-	inst, err := resolveInstance(c, name)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "❌ %v\n", err)
-		return nil
-	}
-	return inst
-}
+var appRuntime core.Runtime = appRuntimeProxy{}
 
-func (r *tsshRuntime) LoadAllInstances() []model.Instance {
-	c := getCache()
-	ensureCache(c)
-	insts, err := c.Load()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "❌ load cache: %v\n", err)
-		return nil
-	}
-	return insts
-}
-
-func (r *tsshRuntime) ExecOneShot(instanceID, cmd string, timeoutSec int) (*core.ExecResult, error) {
-	client, err := NewAliyunClient(mustLoadConfig())
-	if err != nil {
-		return nil, err
-	}
-	if timeoutSec <= 0 {
-		timeoutSec = 30
-	}
-	res, err := client.RunCommand(instanceID, cmd, timeoutSec)
-	if err != nil {
-		return nil, err
-	}
-	return &core.ExecResult{
-		Output:   decodeOutput(res.Output),
-		ExitCode: res.ExitCode,
-	}, nil
-}
-
-func (r *tsshRuntime) ExecInteractive(instanceID, cmd string) error {
-	return ConnectSessionWithCommand(mustLoadConfig(), instanceID, cmd)
-}
-
-func (r *tsshRuntime) StartPortForward(instanceID string, localPort, remotePort int) (func(), error) {
-	return startPortForwardBgWithCancel(mustLoadConfig(), instanceID, localPort, remotePort)
-}
-
-func (r *tsshRuntime) StartSocatRelay(jumpID, remoteHost string, remotePort int) (int, func(), error) {
-	client, err := NewAliyunClient(mustLoadConfig())
-	if err != nil {
-		return 0, nil, err
-	}
-	socatPort, _, cleanup, err := setupSocatRelay(client, jumpID, remoteHost, remotePort)
-	return socatPort, cleanup, err
+func realAppRuntime() core.Runtime {
+	appRuntimeOnce.Do(func() {
+		rt := tssruntime.New(globalProfile)
+		rt.ExecInteractiveFn = func(cfg *model.Config, id, cmd string) error {
+			return ConnectSessionWithCommand(cfg, id, cmd)
+		}
+		rt.StartPortForwardFn = func(cfg *model.Config, id string, lp, rp int) (func(), error) {
+			return startPortForwardBgWithCancel(cfg, id, lp, rp)
+		}
+		rt.StartSocatRelayFn = func(c *aliyun.Client, jumpID, host string, port int) (int, func(), error) {
+			socat, _, cleanup, err := setupSocatRelay(c, jumpID, host, port)
+			return socat, cleanup, err
+		}
+		appRuntimeVal = rt
+	})
+	return appRuntimeVal
 }

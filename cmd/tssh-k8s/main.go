@@ -1,17 +1,12 @@
-// Command tssh-k8s is the k8s-only slice of the tssh toolkit. It ships the
-// same ks / kf / logs / events subcommands as the full tssh binary but
-// without anything else — smaller download, same source.
+// Command tssh-k8s is the k8s-only slice of the tssh toolkit. Ships ks, kf,
+// logs and events only — no ECS management, no ARMS, no browser/vpn bits.
 //
-// Subcommands:
+//	tssh-k8s ks     <jump> <svc>  [-n ns] [-j]
+//	tssh-k8s kf     <jump> <svc:port>[=<local>] ... [--browser] [-j]
+//	tssh-k8s logs   <jump> <svc>  [-n ns] [-l sel] [-f]
+//	tssh-k8s events <jump>        [-n ns] [--svc x] [--level Warning] [-w]
 //
-//	tssh-k8s ks    <jump> <svc>  [-n ns] [-j]             service diagnostics
-//	tssh-k8s kf    <jump> <svc:port> ...                  port-forward multi-svc
-//	tssh-k8s logs  <jump> <svc> [-n ns] [-l sel] [-f]     multi-pod log stream
-//	tssh-k8s events <jump> [-n ns] [-w]                   k8s events viewer
-//
-// The main tssh binary continues to expose everything including these; this
-// binary exists for users who only want the k8s slice (or want a separate
-// permissions/version boundary).
+// Same source as the full tssh: internal/cmd/k8s is linked into both.
 package main
 
 import (
@@ -19,66 +14,68 @@ import (
 	"os"
 
 	"github.com/wangxiuwen/tssh/internal/cmd/k8s"
-	"github.com/wangxiuwen/tssh/internal/core"
-	"github.com/wangxiuwen/tssh/internal/model"
+	"github.com/wangxiuwen/tssh/internal/runtime"
 )
 
-// TODO(refactor): wire up a real k8s Runtime once core helpers (config/cache
-// loading) are factored out of cmd/tssh. For now this is a compile-only
-// stub — calling `tssh-k8s <sub>` prints a TODO and exits 1.  The purpose
-// of the stub is to prove the package structure supports independent mains.
-type stubRuntime struct{}
-
-func (stubRuntime) LoadConfig() *model.Config                                      { return nil }
-func (stubRuntime) ResolveInstance(string) *model.Instance                          { return nil }
-func (stubRuntime) LoadAllInstances() []model.Instance                              { return nil }
-func (stubRuntime) ExecOneShot(string, string, int) (*core.ExecResult, error)       { return nil, errNotWired }
-func (stubRuntime) ExecInteractive(string, string) error                            { return errNotWired }
-func (stubRuntime) StartPortForward(string, int, int) (func(), error)               { return nil, errNotWired }
-func (stubRuntime) StartSocatRelay(string, string, int) (int, func(), error)        { return 0, nil, errNotWired }
-
-var errNotWired = fmtErr("tssh-k8s runtime 尚未接通; Phase 3 会把 cmd/tssh 的 tsshRuntime 挪到 internal/runtime 供两个 main 共用")
-
-type errString string
-
-func (e errString) Error() string { return string(e) }
-func fmtErr(s string) error       { return errString(s) }
-
 func main() {
+	profile := ""
 	args := os.Args[1:]
-	if len(args) == 0 {
+
+	// --profile / -p is handled here, not in the k8s group, because it's a
+	// top-level concern (which cloud account to talk to). Same semantics as
+	// the main tssh binary.
+	var rest []string
+	for i := 0; i < len(args); i++ {
+		if (args[i] == "--profile" || args[i] == "-p") && i+1 < len(args) {
+			profile = args[i+1]
+			i++
+			continue
+		}
+		rest = append(rest, args[i])
+	}
+
+	if len(rest) == 0 {
 		usage()
 		os.Exit(1)
 	}
-	var rt core.Runtime = stubRuntime{}
-	switch args[0] {
+
+	rt := runtime.New(profile)
+
+	switch rest[0] {
 	case "ks":
-		k8s.KS(rt, args[1:])
+		k8s.KS(rt, rest[1:])
 	case "kf":
-		k8s.KF(rt, args[1:])
+		k8s.KF(rt, rest[1:])
 	case "logs":
-		k8s.Logs(rt, args[1:])
+		k8s.Logs(rt, rest[1:])
 	case "events":
-		k8s.Events(rt, args[1:])
+		k8s.Events(rt, rest[1:])
 	case "-h", "--help", "help":
 		usage()
+	case "-v", "--version", "version":
+		fmt.Println("tssh-k8s", version)
 	default:
-		fmt.Fprintf(os.Stderr, "unknown subcommand: %s\n\n", args[0])
+		fmt.Fprintf(os.Stderr, "unknown subcommand: %s\n\n", rest[0])
 		usage()
 		os.Exit(1)
 	}
 }
 
+const version = "1.16.0-refactor.7"
+
 func usage() {
-	fmt.Println(`tssh-k8s — k8s-only slice of tssh
+	fmt.Printf(`tssh-k8s %s — k8s-only slice of tssh
+
+Usage:
+  tssh-k8s [--profile <name>] <subcommand> [args...]
 
 Subcommands:
-  tssh-k8s ks     <jump> <svc>  [-n ns] [-j]
-  tssh-k8s kf     <jump> <svc:port>[=<local>] ...  [--browser] [-j]
-  tssh-k8s logs   <jump> <svc>  [-n ns] [-l sel] [-f]
-  tssh-k8s events <jump>        [-n ns] [--svc x] [--level Warning] [-w]
+  ks     <jump> <svc>  [-n ns] [-j]                      service 健康诊断
+  kf     <jump> <svc:port>[=<local>] ... [--browser]     一次多 svc port-forward
+  logs   <jump> <svc>  [-n ns] [-l sel] [-f]             多 pod 日志流聚合
+  events <jump>        [-n ns] [--svc x] [--level Warning] [-w]  k8s 事件查看
 
-Runtime wiring is in progress; until Phase 3 lands, use the main tssh binary
-for actual remote calls. This binary demonstrates the cmd/k8s package can
-be linked standalone.`)
+本 binary 是 slim runtime. kf 需要的 port-forward 底层在 Phase 4 会搬到
+共享包; 在那之前如果你用 kf, 请用主 tssh 二进制.
+`, version)
 }

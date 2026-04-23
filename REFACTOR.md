@@ -74,11 +74,17 @@ cmd/
 - [ ] `internal/cmd/core/` (剩下的 ECS 基础能力)
 
 ### Phase 3 — 拆 main
-每组写独立 `cmd/tssh-<group>/main.go`, 只注册该组的 dispatch.
-主 `cmd/tssh/main.go` 继续注册全部 (向后兼容).
 
-Makefile 加 targets: `make tssh-net`, `make tssh-k8s`, ...
-Release workflow 产物加各 platform × 各 binary.
+- [x] `internal/runtime.Runtime` 共享实现 (config / cache / ResolveInstance
+      非 TUI 版 / ExecOneShot). 可注入 ExecInteractiveFn /
+      StartPortForwardFn / StartSocatRelayFn 给有能力的 binary 用
+- [x] cmd/tssh/runtime.go 改为懒代理, 注入主 tssh 特有的 hook
+      (ConnectSessionWithCommand / startPortForwardBgWithCancel / setupSocatRelay)
+- [x] cmd/tssh-k8s 真能跑 events/ks/logs (v1.16.0-refactor.7)
+      kf 需要 port-forward hook — 下一轮把 session/portforward/socat 挪到
+      internal 后 tssh-k8s 就能全功能
+- [ ] Makefile 加 targets: `make tssh-net`, `make tssh-k8s`, ...
+- [ ] Release workflow 多 binary × 多 platform
 
 ### Phase 4 — 文档 & 安装建议
 - README 分节: 有洁癖只装对应 binary, 懒就装 tssh 全家桶

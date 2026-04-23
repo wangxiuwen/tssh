@@ -8,16 +8,16 @@ import (
 
 // SubCmd defines a subcommand in a command group.
 type SubCmd struct {
-	Name    string            // primary name
-	Aliases []string          // alternative names (e.g. "ls" for "list")
-	Desc    string            // one-line description for help
+	Name    string              // primary name
+	Aliases []string            // alternative names (e.g. "ls" for "list")
+	Desc    string              // one-line description for help
 	Run     func(args []string) // handler
 }
 
 // CmdGroup is a table-driven subcommand dispatcher.
 type CmdGroup struct {
-	Name     string   // parent command name (e.g. "arms")
-	Desc     string   // short description
+	Name     string              // parent command name (e.g. "arms")
+	Desc     string              // short description
 	Default  func(args []string) // handler when no subcommand given (nil = show help)
 	Commands []SubCmd
 }

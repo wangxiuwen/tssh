@@ -79,12 +79,12 @@ echo "$cores|$load1|$mem|$disk"`
 		iteration++
 
 		type topResult struct {
-			Name    string
-			CPU     string
-			Load    string
-			Mem     string
-			Disk    string
-			Error   string
+			Name  string
+			CPU   string
+			Load  string
+			Mem   string
+			Disk  string
+			Error string
 		}
 
 		results := make([]topResult, len(targets))

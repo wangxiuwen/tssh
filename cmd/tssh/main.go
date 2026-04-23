@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const version = "1.11.1"
+const version = "1.11.2"
 
 // Global flags parsed from os.Args before subcommand dispatch
 var globalProfile string
@@ -144,8 +144,10 @@ func main() {
 func parseSSHArgs(args []string) (target, localForward string, command []string, timeout int) {
 	timeout = 60
 	if v := os.Getenv("TSSH_DEFAULT_TIMEOUT"); v != "" {
-		if t, err := strconv.Atoi(v); err == nil {
+		if t, err := parseTimeoutSec(v); err == nil {
 			timeout = t
+		} else {
+			fmt.Fprintf(os.Stderr, "⚠️ 忽略无效 TSSH_DEFAULT_TIMEOUT=%s: %v\n", v, err)
 		}
 	}
 	// SSH flags that take an argument (skip next arg)
@@ -186,9 +188,12 @@ func parseSSHArgs(args []string) (target, localForward string, command []string,
 			}
 		case arg == "--timeout":
 			if i+1 < len(args) {
-				if t, err := strconv.Atoi(args[i+1]); err == nil {
-					timeout = t
+				t, err := parseTimeoutSec(args[i+1])
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "❌ %v\n", err)
+					os.Exit(2)
 				}
+				timeout = t
 				i++
 			}
 		case argFlags[arg]:
@@ -229,7 +234,7 @@ func printUsage() {
   tssh sync                        同步实例缓存
   tssh exec [options] <target> <cmd>   远程执行
     --notify <url>                 执行后发送 webhook 通知
-    --timeout <sec>                超时秒数 (默认: $TSSH_DEFAULT_TIMEOUT 或 60)
+    --timeout <sec|duration>       整数秒或 duration 如 5m/2h (默认: $TSSH_DEFAULT_TIMEOUT 或 60)
   tssh cp [-g <pat>] <src> <dst>   文件拷贝
   tssh health [-g <pat>]           健康检查
   tssh ping [-g <pat>] [<name>]    连通性测试

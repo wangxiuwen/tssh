@@ -1,10 +1,10 @@
 package main
 
 import (
-"fmt"
-"os"
-"sync"
-"time"
+	"fmt"
+	"os"
+	"sync"
+	"time"
 )
 
 // cmdPing tests Cloud Assistant connectivity by running a simple echo command

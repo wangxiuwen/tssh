@@ -1,17 +1,17 @@
 package main
 
 import (
-"crypto/hmac"
-"crypto/sha1"
-"encoding/base64"
-"fmt"
-"net/url"
-"os"
-"path/filepath"
-"strconv"
-"strings"
-"sync"
-"time"
+	"crypto/hmac"
+	"crypto/sha1"
+	"encoding/base64"
+	"fmt"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
 )
 
 // chunkSize is the per-call payload size for chunked transfers. Cloud Assistant
@@ -288,11 +288,11 @@ func singleQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-
 // cmdCopy copies files to/from instances. Flags:
-//   -g/--grep <pat>   batch upload to all matching instances
-//   --resume/-r       resume via portforward+rsync (requires ssh key)
-//   --bucket <name>   relay through OSS bucket (best for ≥50MB files)
+//
+//	-g/--grep <pat>   batch upload to all matching instances
+//	--resume/-r       resume via portforward+rsync (requires ssh key)
+//	--bucket <name>   relay through OSS bucket (best for ≥50MB files)
 func cmdCopy(args []string) {
 	grepMode := false
 	resumeMode := false

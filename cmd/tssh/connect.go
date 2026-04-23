@@ -1,12 +1,11 @@
 package main
 
 import (
-"fmt"
-"os"
-"strconv"
-"strings"
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
 )
-
 
 // cmdConnect connects interactively
 func cmdConnect(target string) {
@@ -50,9 +49,10 @@ func cmdRemoteExec(target, command string, timeout int) {
 
 // cmdPortForward handles -L port forwarding with REMOTE HOST support
 // Supports syntax sugar:
-//   -L 3306           → 3306:localhost:3306
-//   -L 3306:dbhost    → 3306:dbhost:3306
-//   -L 3306:dbhost:5432 → full form
+//
+//	-L 3306           → 3306:localhost:3306
+//	-L 3306:dbhost    → 3306:dbhost:3306
+//	-L 3306:dbhost:5432 → full form
 func cmdPortForward(target, spec string) {
 	parts := strings.SplitN(spec, ":", 3)
 	switch len(parts) {

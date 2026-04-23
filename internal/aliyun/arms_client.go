@@ -72,7 +72,7 @@ type TraceTag struct {
 
 // TraceLogEvent is a log line associated with a span (e.g. exception stack).
 type TraceLogEvent struct {
-	Timestamp int64      `json:"Timestamp"`
+	Timestamp    int64      `json:"Timestamp"`
 	TagEntryList []TraceTag `json:"TagEntryList"`
 }
 
@@ -205,8 +205,8 @@ func (c *ARMSClient) ListActivatedAlerts(page, pageSize int) ([]ActivatedAlert, 
 	}
 	var result struct {
 		Page struct {
-			Alerts   []ActivatedAlert `json:"Alerts"`
-			Total    int              `json:"Total"`
+			Alerts []ActivatedAlert `json:"Alerts"`
+			Total  int              `json:"Total"`
 		} `json:"Page"`
 	}
 	if err := json.Unmarshal(data, &result); err != nil {
@@ -225,7 +225,9 @@ func (c *ARMSClient) FetchAllActivatedAlerts() ([]ActivatedAlert, error) {
 			return nil, err
 		}
 		all = append(all, alerts...)
-		if len(all) >= total {
+		// Bail on empty page too; a transient API blip with total>len(all)
+		// would otherwise spin forever.
+		if len(alerts) == 0 || len(all) >= total {
 			break
 		}
 		page++

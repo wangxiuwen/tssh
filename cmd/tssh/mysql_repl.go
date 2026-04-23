@@ -19,11 +19,11 @@ import (
 
 // MySQL packet constants
 const (
-	mysqlComQuery    = 0x03
-	mysqlComQuit     = 0x01
-	mysqlOKPacket    = 0x00
-	mysqlErrPacket   = 0xff
-	mysqlEOFPacket   = 0xfe
+	mysqlComQuery  = 0x03
+	mysqlComQuit   = 0x01
+	mysqlOKPacket  = 0x00
+	mysqlErrPacket = 0xff
+	mysqlEOFPacket = 0xfe
 )
 
 // mysqlConn wraps a MySQL TCP connection
@@ -98,7 +98,7 @@ func mysqlHandshake(mc *mysqlConn, user, password string) error {
 
 	// Character set, status flags, capability flags upper 2 bytes
 	if pos < len(data) {
-		pos++ // charset
+		pos++    // charset
 		pos += 2 // status
 		pos += 2 // cap upper
 	}

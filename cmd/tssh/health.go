@@ -1,12 +1,12 @@
 package main
 
 import (
-"encoding/json"
-"fmt"
-"os"
-"strconv"
-"strings"
-"sync"
+	"encoding/json"
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+	"sync"
 )
 
 // cmdHealth runs health checks / smart inspection on instances
@@ -222,8 +222,6 @@ echo "net_estab:${estab:-0}"
 	}
 }
 
-
-
 // healthResult type must be file-level for render functions
 type healthResult struct {
 	Name       string    `json:"name"`
@@ -250,4 +248,3 @@ type jvmInfo struct {
 	Name string `json:"name"`
 	Heap string `json:"heap"`
 }
-

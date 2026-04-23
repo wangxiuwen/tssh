@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
+	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/ecs"
 	"github.com/wangxiuwen/tssh/internal/model"
 )
@@ -131,7 +131,10 @@ func (a *Client) FetchAllInstances() ([]model.Instance, error) {
 				Region: inst.RegionId, Zone: inst.ZoneId, VpcID: inst.VpcAttributes.VpcId, Tags: tags,
 			})
 		}
-		if len(all) >= resp.TotalCount {
+		// Belt-and-suspenders: bail when a page yields no new rows. Otherwise a
+		// transient empty response from the API while TotalCount > len(all)
+		// would spin forever.
+		if len(resp.Instances.Instance) == 0 || len(all) >= resp.TotalCount {
 			break
 		}
 		page++
@@ -380,7 +383,7 @@ func (a *Client) waitForResult(invokeID, instanceID string, timeoutSec int) (*mo
 		resp, err := a.api.DescribeInvocationResults(req)
 		if err != nil {
 			if isThrottled(err) {
-					a.sleep(2 * time.Second)
+				a.sleep(2 * time.Second)
 				continue
 			}
 			return nil, err

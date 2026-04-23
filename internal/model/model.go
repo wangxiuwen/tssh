@@ -35,8 +35,8 @@ type CommandResult struct {
 type InvocationStatus struct {
 	InvokeID     string `json:"invoke_id"`
 	InstanceID   string `json:"instance_id"`
-	Status       string `json:"status"`   // Running / Success / Failed / Stopped / Finished / Pending / PartialFailed
-	Output       string `json:"output"`   // base64-decoded remote stdout
+	Status       string `json:"status"` // Running / Success / Failed / Stopped / Finished / Pending / PartialFailed
+	Output       string `json:"output"` // base64-decoded remote stdout
 	ExitCode     int    `json:"exit_code"`
 	ErrorCode    string `json:"error_code,omitempty"`
 	ErrorInfo    string `json:"error_info,omitempty"`

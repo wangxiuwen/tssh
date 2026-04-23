@@ -192,7 +192,7 @@ func TestPrintActivatedAlert_DoesNotPanic(t *testing.T) {
 		AlertName:       "TestAlert",
 		Severity:        "critical",
 		Status:          "Active",
-		StartsAt:        time.Now().Add(-30*time.Minute).UnixMilli(),
+		StartsAt:        time.Now().Add(-30 * time.Minute).UnixMilli(),
 		IntegrationName: "ARMS_GRAFANA",
 		IntegrationType: "GRAFANA",
 		ExpandFields: map[string]string{

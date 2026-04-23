@@ -34,13 +34,13 @@ func NewClient(cfg *model.GrafanaConfig) *Client {
 
 // Alert represents a firing alert from Grafana Alertmanager API.
 type Alert struct {
-	Labels      map[string]string `json:"labels"`
-	Annotations map[string]string `json:"annotations"`
-	StartsAt    time.Time         `json:"startsAt"`
-	EndsAt      time.Time         `json:"endsAt"`
-	Status      AlertStatus       `json:"status"`
-	Fingerprint string            `json:"fingerprint"`
-	GeneratorURL string           `json:"generatorURL"`
+	Labels       map[string]string `json:"labels"`
+	Annotations  map[string]string `json:"annotations"`
+	StartsAt     time.Time         `json:"startsAt"`
+	EndsAt       time.Time         `json:"endsAt"`
+	Status       AlertStatus       `json:"status"`
+	Fingerprint  string            `json:"fingerprint"`
+	GeneratorURL string            `json:"generatorURL"`
 }
 
 // AlertStatus holds the alert state.
@@ -75,9 +75,9 @@ type Datasource struct {
 
 // PromQueryResult represents a Prometheus instant query response.
 type PromQueryResult struct {
-	Status string       `json:"status"`
-	Data   PromData     `json:"data"`
-	Error  string       `json:"error,omitempty"`
+	Status string   `json:"status"`
+	Data   PromData `json:"data"`
+	Error  string   `json:"error,omitempty"`
 }
 
 // PromData holds Prometheus query data.

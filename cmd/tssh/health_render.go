@@ -1,9 +1,9 @@
 package main
 
 import (
-"fmt"
-"strings"
-"time"
+	"fmt"
+	"strings"
+	"time"
 )
 
 func shortenName(name string, maxLen int) string {
@@ -169,7 +169,7 @@ func renderHealthTable(results []healthResult, running, totalAlerts int, alertOn
 			}
 			name := shortenName(r.Name, nameW)
 			alertStr := strings.Join(r.Alerts, ", ")
-			
+
 			hasCritical := false
 			for _, a := range r.Alerts {
 				if strings.Contains(a, "OOM") || strings.Contains(a, "CPU") || strings.Contains(a, "内存") || strings.Contains(a, "磁盘") || strings.Contains(a, "JVM") {

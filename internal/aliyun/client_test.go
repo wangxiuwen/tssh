@@ -175,6 +175,36 @@ func TestFetchAllInstances_SinglePage(t *testing.T) {
 	}
 }
 
+// Regression: if the API reports TotalCount > current accumulator but returns
+// an empty page (transient glitch), FetchAllInstances used to spin forever.
+// The guard now bails on empty pages.
+func TestFetchAllInstances_EmptyPageBreaks(t *testing.T) {
+	callCount := 0
+	mock := &mockECS{
+		describeInstancesFn: func(req *ecs.DescribeInstancesRequest) (*ecs.DescribeInstancesResponse, error) {
+			callCount++
+			resp := &ecs.DescribeInstancesResponse{}
+			resp.TotalCount = 100 // lie: claim 100 exist
+			// Return empty list every time — prior code would loop forever
+			return resp, nil
+		},
+	}
+	c := newTestClient(mock)
+	done := make(chan error, 1)
+	go func() {
+		_, err := c.FetchAllInstances()
+		done <- err
+	}()
+	select {
+	case <-done:
+		if callCount > 5 {
+			t.Errorf("should break quickly on empty page, got %d calls", callCount)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("FetchAllInstances spun on empty page — infinite loop regression")
+	}
+}
+
 func TestFetchAllInstances_Error(t *testing.T) {
 	mock := &mockECS{
 		describeInstancesFn: func(req *ecs.DescribeInstancesRequest) (*ecs.DescribeInstancesResponse, error) {
@@ -308,7 +338,7 @@ func TestWrapCommand_Long(t *testing.T) {
 		t.Errorf("expected base64 eval suffix, got: %s", result[len(result)-30:])
 	}
 	// Verify the embedded base64 decodes back to original command
-	b64Part := result[len(prefix):len(result)-len("' | base64 -d)\"")]
+	b64Part := result[len(prefix) : len(result)-len("' | base64 -d)\"")]
 	decoded, err := base64.StdEncoding.DecodeString(b64Part)
 	if err != nil {
 		t.Fatalf("base64 decode error: %v", err)
@@ -339,7 +369,7 @@ func TestWrapCommand_ComplexCommand(t *testing.T) {
 	// Extract and decode base64 content
 	prefix := "export COLUMNS=32767; eval \"$(echo '"
 	suffix := "' | base64 -d)\""
-	b64Part := result[len(prefix):len(result)-len(suffix)]
+	b64Part := result[len(prefix) : len(result)-len(suffix)]
 	decoded, err := base64.StdEncoding.DecodeString(b64Part)
 	if err != nil {
 		t.Fatalf("base64 decode error: %v", err)

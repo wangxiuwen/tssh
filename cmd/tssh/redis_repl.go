@@ -112,11 +112,11 @@ func sendRedisCommand(conn net.Conn, args []string) {
 
 // RESP value types
 type respValue struct {
-	typ      byte   // '+', '-', ':', '$', '*'
-	str      string // for +, -, $
-	integer  int64  // for :
-	array    []respValue // for *
-	isNil    bool   // for null bulk string / null array
+	typ     byte        // '+', '-', ':', '$', '*'
+	str     string      // for +, -, $
+	integer int64       // for :
+	array   []respValue // for *
+	isNil   bool        // for null bulk string / null array
 }
 
 // readRESP reads one complete RESP value from the reader

@@ -1,15 +1,15 @@
 package main
 
 import (
-"encoding/json"
-"fmt"
-"io"
-"os"
-"strconv"
-"strings"
-"sync"
-"sync/atomic"
-"time"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 )
 
 // parseTimeoutSec accepts a bare integer ("300") OR a Go duration ("5m", "2h30m").

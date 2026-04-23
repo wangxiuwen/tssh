@@ -1,15 +1,15 @@
 package main
 
 import (
-"encoding/json"
-"fmt"
-"io"
-"net/http"
-"os"
-osexec "os/exec"
-"runtime"
-"strings"
-"time"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	osexec "os/exec"
+	"runtime"
+	"strings"
+	"time"
 )
 
 // cmdInfo shows detailed information about an instance
@@ -251,4 +251,3 @@ func cmdUpdate() {
 
 	fmt.Printf("✅ 更新成功! v%s → v%s\n", version, latestVersion)
 }
-

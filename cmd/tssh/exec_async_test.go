@@ -51,11 +51,11 @@ func TestParseTimeoutSec_Integer(t *testing.T) {
 
 func TestParseTimeoutSec_Duration(t *testing.T) {
 	cases := map[string]int{
-		"5m":     300,
-		"2h":     7200,
-		"1h30m":  5400,
-		"500ms":  0, // rounds down to 0 → error
-		"300s":   300,
+		"5m":    300,
+		"2h":    7200,
+		"1h30m": 5400,
+		"500ms": 0, // rounds down to 0 → error
+		"300s":  300,
 	}
 	for in, want := range cases {
 		got, err := parseTimeoutSec(in)
@@ -111,6 +111,24 @@ func TestParseExecArgs_TimeoutFromEnv(t *testing.T) {
 	}
 	if !opts.timeoutSet {
 		t.Error("timeoutSet should be true when env var sets it")
+	}
+}
+
+// SSH-style path (tssh <name> <cmd>) had its own --timeout parser that used
+// strconv.Atoi only. `tssh --timeout 5m host cmd` used to silently fall back
+// to 60s. Verify the new parseTimeoutSec is wired in.
+func TestParseSSHArgs_TimeoutDuration(t *testing.T) {
+	_, _, _, timeout := parseSSHArgs([]string{"--timeout", "5m", "host-1", "cmd"})
+	if timeout != 300 {
+		t.Errorf("expected 300 from --timeout 5m, got %d", timeout)
+	}
+}
+
+func TestParseSSHArgs_TimeoutFromEnv(t *testing.T) {
+	t.Setenv("TSSH_DEFAULT_TIMEOUT", "2h")
+	_, _, _, timeout := parseSSHArgs([]string{"host-1", "cmd"})
+	if timeout != 7200 {
+		t.Errorf("expected 7200 from 2h env, got %d", timeout)
 	}
 }
 

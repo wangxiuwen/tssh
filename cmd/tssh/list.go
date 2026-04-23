@@ -1,11 +1,10 @@
 package main
 
 import (
-"encoding/json"
-"fmt"
-"os"
+	"encoding/json"
+	"fmt"
+	"os"
 )
-
 
 // cmdList prints all cached instances
 func cmdList(args []string) {

@@ -35,9 +35,9 @@ func NewWithProfile(profile string) *Cache {
 	return &Cache{dir: dir, file: filepath.Join(dir, file), profile: profile}
 }
 
-func (c *Cache) Ensure() error        { return os.MkdirAll(c.dir, 0755) }
-func (c *Cache) HistoryDir() string    { return c.dir }
-func (c *Cache) Exists() bool          { _, err := os.Stat(c.file); return err == nil }
+func (c *Cache) Ensure() error      { return os.MkdirAll(c.dir, 0755) }
+func (c *Cache) HistoryDir() string { return c.dir }
+func (c *Cache) Exists() bool       { _, err := os.Stat(c.file); return err == nil }
 
 func (c *Cache) Age() time.Duration {
 	info, err := os.Stat(c.file)

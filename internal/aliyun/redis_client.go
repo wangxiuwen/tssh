@@ -97,7 +97,7 @@ func (c *RedisClient) FetchAllRedisInstances() ([]model.RedisInstance, error) {
 				QPS:              inst.QPS,
 			})
 		}
-		if len(all) >= resp.TotalCount {
+		if len(resp.Instances.KVStoreInstance) == 0 || len(all) >= resp.TotalCount {
 			break
 		}
 		page++

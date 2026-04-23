@@ -32,18 +32,17 @@ type TimeoutError = aliyun.TimeoutError
 type Cache = cache.Cache
 
 // Function wrappers
-func NewAliyunClient(cfg *Config) (*AliyunClient, error) { return aliyun.NewClient(cfg) }
-func NewRedisClient(cfg *Config) (*RedisClient, error)   { return aliyun.NewRedisClient(cfg) }
-func NewRDSClient(cfg *Config) (*RDSClient, error)       { return aliyun.NewRDSClient(cfg) }
-func NewCache() *Cache                                    { return cache.New() }
-func NewCacheWithProfile(profile string) *Cache           { return cache.NewWithProfile(profile) }
+func NewAliyunClient(cfg *Config) (*AliyunClient, error)    { return aliyun.NewClient(cfg) }
+func NewRedisClient(cfg *Config) (*RedisClient, error)      { return aliyun.NewRedisClient(cfg) }
+func NewRDSClient(cfg *Config) (*RDSClient, error)          { return aliyun.NewRDSClient(cfg) }
+func NewCache() *Cache                                      { return cache.New() }
+func NewCacheWithProfile(profile string) *Cache             { return cache.NewWithProfile(profile) }
 func LoadConfig() (*Config, error)                          { return config.Load("") }
-func LoadConfigWithProfile(profile string) (*Config, error)  { return config.Load(profile) }
-func LoadGrafanaConfig() (*GrafanaConfig, error)             { return config.LoadGrafana() }
-func NewGrafanaClient(cfg *GrafanaConfig) *GrafanaClient     { return grafana.NewClient(cfg) }
-func NewARMSClient(cfg *Config) (*ARMSClient, error)         { return aliyun.NewARMSClient(cfg) }
-func ListProfiles() []string                              { return config.ListProfiles() }
+func LoadConfigWithProfile(profile string) (*Config, error) { return config.Load(profile) }
+func LoadGrafanaConfig() (*GrafanaConfig, error)            { return config.LoadGrafana() }
+func NewGrafanaClient(cfg *GrafanaConfig) *GrafanaClient    { return grafana.NewClient(cfg) }
+func NewARMSClient(cfg *Config) (*ARMSClient, error)        { return aliyun.NewARMSClient(cfg) }
+func ListProfiles() []string                                { return config.ListProfiles() }
 func FilterInstances(instances []Instance, pattern string) []Instance {
 	return cache.FilterInstances(instances, pattern)
 }
-

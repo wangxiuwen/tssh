@@ -154,7 +154,9 @@ func ListProfiles() []string {
 	configPath := filepath.Join(home, ".aliyun", "config.json")
 	if data, err := os.ReadFile(configPath); err == nil {
 		var cfg struct {
-			Profiles []struct{ Name string `json:"name"` } `json:"profiles"`
+			Profiles []struct {
+				Name string `json:"name"`
+			} `json:"profiles"`
 		}
 		if err := json.Unmarshal(data, &cfg); err == nil {
 			for _, p := range cfg.Profiles {

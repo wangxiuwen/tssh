@@ -1,12 +1,12 @@
 package main
 
 import (
-"encoding/json"
-"fmt"
-"os"
-"path/filepath"
-"strings"
-"time"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
 )
 
 func cmdSSHConfig() {
@@ -125,7 +125,6 @@ func saveHistory(command string, results interface{}) {
 }
 
 // --- Symlink tools ---
-
 
 func cmdCompletion() {
 	shell := os.Getenv("SHELL")

@@ -44,7 +44,7 @@ func startPortForwardBgWithCancel(cfg *Config, instanceID string, localPort, rem
 	// listens on the port and we can stop it by connecting then closing.
 	// Better approach: pass a context. For now, just print the message here
 	// and let PortForward handle its own lifecycle.
-	
+
 	fmt.Fprintf(os.Stderr, "📡 端口转发: 127.0.0.1:%d → remote:%d\n", localPort, remotePort)
 
 	errCh := make(chan error, 1)

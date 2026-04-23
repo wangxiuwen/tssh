@@ -173,6 +173,33 @@ func TestFetchAllActivatedAlerts_SinglePage(t *testing.T) {
 	}
 }
 
+// Regression: empty-page guard prevents infinite loop when API returns
+// total>0 but no alerts on a page.
+func TestFetchAllActivatedAlerts_EmptyPageBreaks(t *testing.T) {
+	calls := 0
+	client := &ARMSClient{
+		doRequest: func(apiName string, params map[string]string) ([]byte, error) {
+			calls++
+			return []byte(`{"Page":{"Alerts":[],"Total":100}}`), nil
+		},
+		region:  "cn-beijing",
+		sleepFn: func(d time.Duration) {},
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := client.FetchAllActivatedAlerts()
+		done <- err
+	}()
+	select {
+	case <-done:
+		if calls > 5 {
+			t.Errorf("should break quickly, got %d calls", calls)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("infinite loop on empty page regression")
+	}
+}
+
 func TestFetchAllActivatedAlerts_Error(t *testing.T) {
 	client := newTestARMSClient("", fmt.Errorf("network error"))
 	_, err := client.FetchAllActivatedAlerts()

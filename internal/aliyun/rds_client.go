@@ -96,7 +96,7 @@ func (c *RDSClient) FetchAllRDSInstances() ([]model.RDSInstance, error) {
 				Category:         inst.Category,
 			})
 		}
-		if len(all) >= resp.TotalRecordCount {
+		if len(resp.Items.DBInstance) == 0 || len(all) >= resp.TotalRecordCount {
 			break
 		}
 		page++

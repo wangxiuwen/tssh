@@ -1,4 +1,4 @@
-package main
+package session
 
 import (
 	"encoding/binary"
@@ -13,6 +13,9 @@ import (
 
 	"github.com/gorilla/websocket"
 	"golang.org/x/term"
+
+	"github.com/wangxiuwen/tssh/internal/aliyun"
+	"github.com/wangxiuwen/tssh/internal/model"
 )
 
 // wsSafeWrite serializes WriteMessage calls on a shared *websocket.Conn.
@@ -153,8 +156,8 @@ func encodeAxtMessage(msg *AxtMessage) []byte {
 }
 
 // ConnectSession establishes an interactive terminal via StartTerminalSession + WebSocket
-func ConnectSession(config *Config, instanceID string) error {
-	client, err := NewAliyunClient(config)
+func ConnectSession(config *model.Config, instanceID string) error {
+	client, err := aliyun.NewClient(config)
 	if err != nil {
 		return err
 	}
@@ -296,8 +299,8 @@ func ConnectSession(config *Config, instanceID string) error {
 }
 
 // ConnectSessionWithCommand establishes an interactive terminal and sends a startup command
-func ConnectSessionWithCommand(config *Config, instanceID string, command string) error {
-	client, err := NewAliyunClient(config)
+func ConnectSessionWithCommand(config *model.Config, instanceID string, command string) error {
+	client, err := aliyun.NewClient(config)
 	if err != nil {
 		return err
 	}
@@ -443,8 +446,8 @@ func ConnectSessionWithCommand(config *Config, instanceID string, command string
 }
 
 // PortForward via StartTerminalSession with PortNumber
-func PortForward(config *Config, instanceID string, localPort, remotePort int) error {
-	client, err := NewAliyunClient(config)
+func PortForward(config *model.Config, instanceID string, localPort, remotePort int) error {
+	client, err := aliyun.NewClient(config)
 	if err != nil {
 		return err
 	}

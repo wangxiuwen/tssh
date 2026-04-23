@@ -1,21 +1,23 @@
-package main
+package session
 
 import (
 	"fmt"
 	"net"
 	"os"
 	"time"
+
+	"github.com/wangxiuwen/tssh/internal/model"
 )
 
-// startNativePortForward runs native port forwarding (blocking).
+// StartNativePortForward runs native port forwarding (blocking).
 // Use this for foreground portforward (e.g. tssh -L).
-func startNativePortForward(cfg *Config, instanceID string, localPort, remotePort int) error {
+func StartNativePortForward(cfg *model.Config, instanceID string, localPort, remotePort int) error {
 	return PortForward(cfg, instanceID, localPort, remotePort)
 }
 
 // startNativePortForwardBg starts port forwarding in background and waits for it to be ready.
 // Returns a stop function to terminate the portforward.
-func startNativePortForwardBg(cfg *Config, instanceID string, localPort, remotePort int) (stop func(), err error) {
+func StartNativePortForwardBg(cfg *model.Config, instanceID string, localPort, remotePort int) (stop func(), err error) {
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- PortForward(cfg, instanceID, localPort, remotePort)
@@ -39,7 +41,7 @@ func startNativePortForwardBg(cfg *Config, instanceID string, localPort, remoteP
 
 // startPortForwardBgWithCancel starts portforward in background with a cancel channel.
 // When done, close the returned channel or call the stop function.
-func startPortForwardBgWithCancel(cfg *Config, instanceID string, localPort, remotePort int) (stop func(), err error) {
+func StartPortForwardBgWithCancel(cfg *model.Config, instanceID string, localPort, remotePort int) (stop func(), err error) {
 	// We need the PortForward to be stoppable. The current implementation
 	// listens on the port and we can stop it by connecting then closing.
 	// Better approach: pass a context. For now, just print the message here

@@ -19,6 +19,7 @@ import (
 	"github.com/wangxiuwen/tssh/internal/config"
 	"github.com/wangxiuwen/tssh/internal/core"
 	"github.com/wangxiuwen/tssh/internal/model"
+	"github.com/wangxiuwen/tssh/internal/session"
 )
 
 // Runtime wires up just enough of the tssh internals to satisfy core.Runtime
@@ -41,7 +42,19 @@ type Runtime struct {
 
 // New builds a Runtime bound to the given profile. profile="" means "use
 // whatever LoadConfig picks" (env vars, default profile in config.json).
-func New(profile string) *Runtime { return &Runtime{profile: profile} }
+//
+// Defaults are wired to internal/session's PortForward + ConnectSessionWithCommand
+// so every binary gets these capabilities for free. Callers can still
+// override the Fn fields (e.g. cmd/tssh keeps the same session functions
+// but could swap in a no-op for a test binary).
+func New(profile string) *Runtime {
+	return &Runtime{
+		profile:             profile,
+		ExecInteractiveFn:   session.ConnectSessionWithCommand,
+		StartPortForwardFn:  session.StartPortForwardBgWithCancel,
+		StartSocatRelayFn:   nil, // still tied to cmd/tssh.setupSocatRelay until fwd.go migrates
+	}
+}
 
 // ---- core.Runtime impl ----
 

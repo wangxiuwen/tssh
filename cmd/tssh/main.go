@@ -1,16 +1,17 @@
 package main
 
 import (
-	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/wangxiuwen/tssh/internal/shared"
 )
 
-const version = "1.16.0-refactor.1"
+const version = "1.16.0-refactor.2"
 
 // Global flags parsed from os.Args before subcommand dispatch
 var globalProfile string
@@ -416,29 +417,14 @@ func resolveInstanceOrExit(c *Cache, name string) *Instance {
 	return inst
 }
 
-func decodeOutput(output string) string {
-	decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(output))
-	if err != nil {
-		return output
-	}
-	return string(decoded)
-}
-
+// Thin wrappers over internal/shared for gradual migration to split binaries.
+// Each keeps the old lowercase name so cmd/tssh callers don't have to change
+// in the same revision that moves the helper.
+func decodeOutput(output string) string { return shared.DecodeOutput(output) }
 func truncateStr(s string, maxLen int) string {
-	s = strings.ReplaceAll(s, "\n", "\\n")
-	if len(s) > maxLen {
-		return s[:maxLen] + "..."
-	}
-	return s
+	return shared.TruncateStr(s, maxLen)
 }
-
-func isTerminal() bool {
-	fi, err := os.Stdin.Stat()
-	if err != nil {
-		return true
-	}
-	return fi.Mode()&os.ModeCharDevice != 0
-}
+func isTerminal() bool { return shared.IsTerminal() }
 
 func fatal(err error, msg string) {
 	if err != nil {

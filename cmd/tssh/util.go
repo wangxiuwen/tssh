@@ -1,9 +1,10 @@
 package main
 
 import (
-	"net"
 	"os/exec"
 	"time"
+
+	"github.com/wangxiuwen/tssh/internal/shared"
 )
 
 func sleepDuration(seconds int) {
@@ -14,15 +15,9 @@ func sleepMs(ms int) {
 	time.Sleep(time.Duration(ms) * time.Millisecond)
 }
 
-func findFreePort() int {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return 54321
-	}
-	port := l.Addr().(*net.TCPAddr).Port
-	l.Close()
-	return port
-}
+// findFreePort keeps the old name as a delegate to shared.FindFreePort so
+// callers in cmd/tssh migrate at their own pace.
+func findFreePort() int { return shared.FindFreePort() }
 
 func execCommand(name string, args ...string) *exec.Cmd {
 	return exec.Command(name, args...)

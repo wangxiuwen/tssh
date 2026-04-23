@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/wangxiuwen/tssh/internal/shared"
 )
 
 // cmdFwd is the zero-config "make me a local port to this service" command.
@@ -304,13 +306,9 @@ func mkSocatCleanup(client *AliyunClient, jumpID, pid string) func() {
 	}
 }
 
-// findFreePortInRange tries to find an unused local port in [start, end].
-// Used to pick socat ports on the remote — local uniqueness also matters
-// because Cloud Assistant port-forward can only have one session per port.
+// findFreePortInRange — delegates to shared.FindFreePortInRange.
 func findFreePortInRange(start, end int) int {
-	// Start at a pseudo-random offset derived from time to avoid multiple
-	// concurrent tssh fwd sessions always trying the same port first.
-	return start + int(findFreePort())%(end-start+1)
+	return shared.FindFreePortInRange(start, end)
 }
 
 func printFwdHelp() {

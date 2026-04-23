@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/wangxiuwen/tssh/internal/grafana"
+	"github.com/wangxiuwen/tssh/internal/shared"
 )
 
 var armsGroup = CmdGroup{
@@ -328,10 +329,7 @@ func openBrowser(url string) {
 	exec.Start()
 }
 
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
-}
+func fileExists(path string) bool { return shared.FileExists(path) }
 
 // cmdArmsQuery executes a Prometheus query via Grafana proxy
 func cmdArmsQuery(args []string) {

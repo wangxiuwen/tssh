@@ -5,33 +5,17 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
+
+	"github.com/wangxiuwen/tssh/internal/shared"
 )
 
-// parseTimeoutSec accepts a bare integer ("300") OR a Go duration ("5m", "2h30m").
-// Returns seconds and a parse error; never silently falls through to zero,
-// because that used to collapse local poll deadlines to ~10s and made users
-// think --timeout was ignored.
+// parseTimeoutSec — thin wrapper around shared.ParseTimeoutSec, so callers
+// in cmd/tssh don't need to update imports in lockstep with the refactor.
 func parseTimeoutSec(s string) (int, error) {
-	if n, err := strconv.Atoi(s); err == nil {
-		if n <= 0 {
-			return 0, fmt.Errorf("timeout 必须大于 0: %s", s)
-		}
-		return n, nil
-	}
-	d, err := time.ParseDuration(s)
-	if err != nil {
-		return 0, fmt.Errorf("无法解析 timeout: %q (期望整数秒或 Go duration, 如 300 / 5m / 2h)", s)
-	}
-	sec := int(d.Seconds())
-	if sec <= 0 {
-		return 0, fmt.Errorf("timeout 必须大于 0: %s", s)
-	}
-	return sec, nil
+	return shared.ParseTimeoutSec(s)
 }
 
 func parseExecArgs(args []string) *execOptions {

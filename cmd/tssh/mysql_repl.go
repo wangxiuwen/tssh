@@ -68,8 +68,17 @@ func mysqlHandshake(mc *mysqlConn, user, password string) error {
 	if err != nil {
 		return fmt.Errorf("read greeting: %w", err)
 	}
+	// Defensive: a truncated or empty greeting would otherwise panic on data[0]
+	// when the tunnel dies mid-handshake or the server returns junk.
+	if len(data) == 0 {
+		return fmt.Errorf("greeting 为空, 远端可能非 MySQL 或连接中断")
+	}
 	if data[0] == mysqlErrPacket {
-		return fmt.Errorf("server error: %s", string(data[9:]))
+		msg := ""
+		if len(data) > 9 {
+			msg = string(data[9:])
+		}
+		return fmt.Errorf("server error: %s", msg)
 	}
 
 	// Parse greeting (protocol 10)
@@ -82,7 +91,10 @@ func mysqlHandshake(mc *mysqlConn, user, password string) error {
 	serverVersion := string(data[pos:nullPos])
 	pos = nullPos + 1
 
-	// Connection ID (4 bytes)
+	// Connection ID (4 bytes) + auth-plugin-data part 1 (8 bytes): need 12 bytes ahead.
+	if pos+12 > len(data) {
+		return fmt.Errorf("greeting 过短 (%d 字节), 无法解析 connection id + auth data", len(data))
+	}
 	pos += 4
 
 	// Auth-plugin-data part 1 (8 bytes)
@@ -169,6 +181,9 @@ func mysqlHandshake(mc *mysqlConn, user, password string) error {
 	if err != nil {
 		return fmt.Errorf("read auth result: %w", err)
 	}
+	if len(data) == 0 {
+		return fmt.Errorf("auth result 为空, 连接可能中断")
+	}
 	if data[0] == mysqlErrPacket {
 		_, msg := parseMysqlError(data)
 		return fmt.Errorf("认证失败: %s", msg)
@@ -221,6 +236,9 @@ func mysqlQuery(mc *mysqlConn, query string) error {
 	data, err := mc.readPacket()
 	if err != nil {
 		return err
+	}
+	if len(data) == 0 {
+		return fmt.Errorf("query response 为空, 连接可能中断")
 	}
 
 	switch data[0] {

@@ -142,20 +142,35 @@ func readRESP(r *bufio.Reader) (respValue, error) {
 		n, _ := strconv.ParseInt(data, 10, 64)
 		return respValue{typ: ':', integer: n}, nil
 	case '$': // Bulk String
-		length, _ := strconv.Atoi(data)
+		length, err := strconv.Atoi(data)
+		if err != nil {
+			return respValue{}, fmt.Errorf("malformed RESP $ length: %q", data)
+		}
 		if length == -1 {
 			return respValue{typ: '$', isNil: true}, nil
 		}
+		// Upper bound: Redis default proto-max-bulk-len is 512MB. Without this
+		// a malicious / buggy server could drive a huge allocation via $99999...
+		if length < 0 || length > 512*1024*1024 {
+			return respValue{}, fmt.Errorf("RESP bulk length out of range: %d", length)
+		}
 		buf := make([]byte, length+2) // +2 for \r\n
-		_, err := io.ReadFull(r, buf)
-		if err != nil {
+		if _, err := io.ReadFull(r, buf); err != nil {
 			return respValue{}, err
 		}
 		return respValue{typ: '$', str: string(buf[:length])}, nil
 	case '*': // Array
-		count, _ := strconv.Atoi(data)
+		count, err := strconv.Atoi(data)
+		if err != nil {
+			return respValue{}, fmt.Errorf("malformed RESP * count: %q", data)
+		}
 		if count == -1 {
 			return respValue{typ: '*', isNil: true}, nil
+		}
+		// Upper bound: 1M elements keeps an oversize server response from
+		// allocating gigabytes of []respValue before we know what's in it.
+		if count < 0 || count > 1<<20 {
+			return respValue{}, fmt.Errorf("RESP array count out of range: %d", count)
 		}
 		arr := make([]respValue, count)
 		for i := 0; i < count; i++ {

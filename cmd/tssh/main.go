@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const version = "1.11.7"
+const version = "1.11.8"
 
 // Global flags parsed from os.Args before subcommand dispatch
 var globalProfile string

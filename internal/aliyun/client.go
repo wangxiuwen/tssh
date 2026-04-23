@@ -296,6 +296,12 @@ func (a *Client) SubmitCommand(instanceID, command string, timeoutSec int) (stri
 // On timeout it returns a *TimeoutError carrying the InvokeID so the caller can
 // resume with FetchInvocation later.
 func (a *Client) RunCommand(instanceID, command string, timeoutSec int) (*model.CommandResult, error) {
+	// Normalize before splitting into submit+wait. Otherwise waitForResult would
+	// get the raw 0 and abort in ~10s while Cloud Assistant is happy with the
+	// default 60s — a source of "--timeout ignored" reports.
+	if timeoutSec <= 0 {
+		timeoutSec = 60
+	}
 	invokeID, err := a.SubmitCommand(instanceID, command, timeoutSec)
 	if err != nil {
 		return nil, err

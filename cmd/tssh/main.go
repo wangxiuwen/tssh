@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const version = "1.11.0"
+const version = "1.11.1"
 
 // Global flags parsed from os.Args before subcommand dispatch
 var globalProfile string
@@ -267,7 +267,7 @@ exec 选项:
   -j, --json       JSON 输出
   -q, --quiet      安静模式
   -s, --script <f> 从文件执行
-  --timeout <sec>  超时 (默认60s)
+  --timeout <sec|duration>  超时, 整数秒或 Go duration (60 / 5m / 2h); 默认 60s
   --progress       显示进度
   --tag <k=v>      按标签过滤
   -                从 stdin 读取

@@ -1020,6 +1020,48 @@ func TestStopInvocation_EmptyInvokeID(t *testing.T) {
 	}
 }
 
+// Regression: RunCommand used to pass the raw timeoutSec to waitForResult,
+// so timeoutSec=0 collapsed the local deadline to 10s while the server used 60s.
+// Symptom: user set --timeout 300s (parsed as 0) and the command appeared to
+// "ignore --timeout" and die in 10s. The fix normalizes timeoutSec before
+// waitForResult. This test verifies timeoutSec=0 doesn't short-circuit.
+func TestRunCommand_ZeroTimeoutNormalized(t *testing.T) {
+	polls := 0
+	mock := &mockECS{
+		runCommandFn: func(req *ecs.RunCommandRequest) (*ecs.RunCommandResponse, error) {
+			resp := &ecs.RunCommandResponse{}
+			resp.InvokeId = "inv-ok"
+			return resp, nil
+		},
+		describeInvocationResultsFn: func(req *ecs.DescribeInvocationResultsRequest) (*ecs.DescribeInvocationResultsResponse, error) {
+			polls++
+			// First poll returns Running, then Success — proves deadline > 10s.
+			resp := &ecs.DescribeInvocationResultsResponse{}
+			if polls < 2 {
+				resp.Invocation.InvocationResults.InvocationResult = []ecs.InvocationResult{
+					{InvocationStatus: "Running"},
+				}
+			} else {
+				resp.Invocation.InvocationResults.InvocationResult = []ecs.InvocationResult{
+					{InvocationStatus: "Success", ExitCode: 0, Output: "ok"},
+				}
+			}
+			return resp, nil
+		},
+	}
+	c := newTestClient(mock)
+	result, err := c.RunCommand("i-001", "cmd", 0) // 0 should normalize to 60
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.ExitCode != 0 {
+		t.Errorf("expected ExitCode 0, got %d", result.ExitCode)
+	}
+	if polls < 2 {
+		t.Errorf("expected at least 2 polls before Success, got %d", polls)
+	}
+}
+
 func TestStopInvocation_APIError(t *testing.T) {
 	mock := &mockECS{
 		stopInvocationFn: func(req *ecs.StopInvocationRequest) (*ecs.StopInvocationResponse, error) {

@@ -9,17 +9,43 @@ import (
 "strings"
 "sync"
 "sync/atomic"
+"time"
 )
 
+// parseTimeoutSec accepts a bare integer ("300") OR a Go duration ("5m", "2h30m").
+// Returns seconds and a parse error; never silently falls through to zero,
+// because that used to collapse local poll deadlines to ~10s and made users
+// think --timeout was ignored.
+func parseTimeoutSec(s string) (int, error) {
+	if n, err := strconv.Atoi(s); err == nil {
+		if n <= 0 {
+			return 0, fmt.Errorf("timeout 必须大于 0: %s", s)
+		}
+		return n, nil
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, fmt.Errorf("无法解析 timeout: %q (期望整数秒或 Go duration, 如 300 / 5m / 2h)", s)
+	}
+	sec := int(d.Seconds())
+	if sec <= 0 {
+		return 0, fmt.Errorf("timeout 必须大于 0: %s", s)
+	}
+	return sec, nil
+}
 
 func parseExecArgs(args []string) *execOptions {
 	defaultTimeout := 60
+	timeoutSet := false
 	if v := os.Getenv("TSSH_DEFAULT_TIMEOUT"); v != "" {
-		if t, err := strconv.Atoi(v); err == nil {
+		if t, err := parseTimeoutSec(v); err == nil {
 			defaultTimeout = t
+			timeoutSet = true
+		} else {
+			fmt.Fprintf(os.Stderr, "⚠️ 忽略无效 TSSH_DEFAULT_TIMEOUT=%s: %v\n", v, err)
 		}
 	}
-	opts := &execOptions{timeout: defaultTimeout}
+	opts := &execOptions{timeout: defaultTimeout, timeoutSet: timeoutSet}
 	var positional []string
 
 	for i := 0; i < len(args); i++ {
@@ -38,7 +64,13 @@ func parseExecArgs(args []string) *execOptions {
 			opts.progress = true
 		case "--timeout":
 			if i+1 < len(args) {
-				opts.timeout, _ = strconv.Atoi(args[i+1])
+				t, err := parseTimeoutSec(args[i+1])
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "❌ %v\n", err)
+					os.Exit(2)
+				}
+				opts.timeout = t
+				opts.timeoutSet = true
 				i++
 			}
 		case "-s", "--script":

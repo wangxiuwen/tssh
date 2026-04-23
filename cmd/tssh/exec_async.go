@@ -7,6 +7,13 @@ import (
 	"strings"
 )
 
+// asyncDefaultTimeoutSec is the server-side Cloud Assistant Timeout applied to
+// --async submissions when the user did not explicitly pass --timeout.
+// Async is used for long-running jobs (docker build, data migrations) — if we
+// inherited the 60s default here, Cloud Assistant would kill the command long
+// before the user fetches results. 24h is the Aliyun API max.
+const asyncDefaultTimeoutSec = 86400
+
 // cmdExecAsync submits the command to every target and prints the InvokeId
 // for each. It does NOT wait for results — caller uses `tssh exec --fetch <id>`
 // or `tssh exec --stop <id>` afterwards.
@@ -22,6 +29,11 @@ func cmdExecAsync(client *AliyunClient, targets []Instance, command string, opts
 		Error      string `json:"error,omitempty"`
 	}
 
+	timeoutSec := opts.timeout
+	if !opts.timeoutSet {
+		timeoutSec = asyncDefaultTimeoutSec
+	}
+
 	subs := make([]submission, 0, len(targets))
 	for _, inst := range targets {
 		s := submission{Name: inst.Name, IP: inst.PrivateIP, InstanceID: inst.ID}
@@ -30,7 +42,7 @@ func cmdExecAsync(client *AliyunClient, targets []Instance, command string, opts
 			subs = append(subs, s)
 			continue
 		}
-		id, err := client.SubmitCommand(inst.ID, command, opts.timeout)
+		id, err := client.SubmitCommand(inst.ID, command, timeoutSec)
 		if err != nil {
 			s.Error = err.Error()
 		} else {
@@ -46,7 +58,7 @@ func cmdExecAsync(client *AliyunClient, targets []Instance, command string, opts
 	}
 
 	if !opts.quietMode {
-		fmt.Fprintf(os.Stderr, "🚀 async 提交 %d 个命令 — 用 `tssh exec --fetch <InvokeID>` 取结果\n\n", len(subs))
+		fmt.Fprintf(os.Stderr, "🚀 async 提交 %d 个命令 (server timeout=%ds) — 用 `tssh exec --fetch <InvokeID>` 取结果\n\n", len(subs), timeoutSec)
 	}
 	for _, s := range subs {
 		if s.Error != "" {

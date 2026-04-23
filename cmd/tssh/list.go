@@ -97,4 +97,5 @@ type execOptions struct {
 	asyncMode  bool   // submit only, print InvokeId, exit 0
 	fetchID    string // one-shot DescribeInvocationResults
 	stopID     string // cancel a running invocation
+	timeoutSet bool   // true if user explicitly passed --timeout / env var
 }

@@ -26,7 +26,10 @@ func Load(profile string) (*model.Config, error) {
 		region = "cn-beijing"
 	}
 
-	if akID != "" && akSecret != "" && profile == "" {
+	// Env-var profile is the default when user didn't specify one. Also honor
+	// `--profile env` explicitly so `ListProfiles` advertising "env" stays
+	// consistent with what `--profile` accepts.
+	if akID != "" && akSecret != "" && (profile == "" || profile == "env") {
 		return &model.Config{
 			AccessKeyID:     akID,
 			AccessKeySecret: akSecret,

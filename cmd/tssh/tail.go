@@ -57,7 +57,8 @@ func cmdTail(args []string) {
 	firstRun := true
 
 	for {
-		cmd := fmt.Sprintf("tail -n %d %s 2>&1", lines, path)
+		// path is user-supplied; quote to prevent shell injection (e.g. `; rm -rf /`).
+		cmd := fmt.Sprintf("tail -n %d '%s' 2>&1", lines, shellQuote(path))
 		result, err := client.RunCommand(inst.ID, cmd, 10)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "⚠️  %v\n", err)

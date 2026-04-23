@@ -111,6 +111,11 @@ func cmdPortForward(target, spec string) {
 			fatal(err, "start socat")
 		}
 		socatPid := strings.TrimSpace(decodeOutput(result.Output))
+		// echo $! should be numeric; if remote emitted anything else (error/banner),
+		// kill with that as arg could shell-inject. Skip cleanup on malformed output.
+		if _, convErr := strconv.Atoi(socatPid); convErr != nil {
+			socatPid = ""
+		}
 
 		defer func() {
 			if socatPid != "" {

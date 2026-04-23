@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -278,6 +279,11 @@ func cmdRDSConnect(args []string) {
 		shared.Fatal(err, "start socat")
 	}
 	socatPid := strings.TrimSpace(shared.DecodeOutput(result.Output))
+	// echo $! should be numeric; non-numeric output means socat failed + remote
+	// emitted banner/error. Don't pass arbitrary text to kill — skip cleanup.
+	if _, convErr := strconv.Atoi(socatPid); convErr != nil {
+		socatPid = ""
+	}
 
 	defer func() {
 		if socatPid != "" {

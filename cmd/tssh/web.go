@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 )
 
 // cmdWeb starts an embedded HTTP server with a management web UI.
@@ -137,6 +138,11 @@ func cmdWeb(args []string) {
 	mux.HandleFunc("/api/info/", requireAuth(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		name := strings.TrimPrefix(r.URL.Path, "/api/info/")
+		if name == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "instance name required in URL path"})
+			return
+		}
 		cache := getCache()
 		inst, err := resolveInstance(cache, name)
 		if err != nil {
@@ -171,7 +177,18 @@ func cmdWeb(args []string) {
 	}
 	fmt.Printf("   按 Ctrl+C 退出\n")
 
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	// Explicit timeouts so a slow-loris client (or a forgotten curl hang) can't
+	// hold connections forever. /api/exec takes up to 30s; give WriteTimeout
+	// a bit more headroom. ReadHeaderTimeout stops pre-TLS slowloris.
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       90 * time.Second,
+	}
+	if err := srv.ListenAndServe(); err != nil {
 		fmt.Fprintf(os.Stderr, "❌ %v\n", err)
 		os.Exit(1)
 	}

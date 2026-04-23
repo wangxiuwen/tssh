@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -272,6 +273,9 @@ func cmdRedisConnect(args []string) {
 		shared.Fatal(err, "start socat")
 	}
 	socatPid := strings.TrimSpace(shared.DecodeOutput(result.Output))
+	if _, convErr := strconv.Atoi(socatPid); convErr != nil {
+		socatPid = ""
+	}
 
 	defer func() {
 		if socatPid != "" {

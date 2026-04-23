@@ -93,7 +93,12 @@ func Events(rt core.Runtime, args []string) {
 		kubectlArgs = append(kubectlArgs, nsArg)
 	}
 	kubectlArgs = append(kubectlArgs, "--sort-by=.lastTimestamp")
-	if level != "" && (level == "Warning" || level == "Normal") {
+	if level != "" {
+		// kubectl field-selector values are case-sensitive. Silently ignoring
+		// `--level warning` was confusing — fail fast with an actionable message.
+		if level != "Warning" && level != "Normal" {
+			shared.FatalMsg(fmt.Sprintf("--level 只接受 Warning 或 Normal (区分大小写), 收到: %s", level))
+		}
 		kubectlArgs = append(kubectlArgs, "--field-selector=type="+level)
 	}
 	if watch {
@@ -104,10 +109,12 @@ func Events(rt core.Runtime, args []string) {
 	if svc != "" {
 		cmd = cmd + " | awk 'NR==1 || /" + regexEscape(svc) + "/'"
 	}
-	// --since is deliberately best-effort for now; precise filtering on
-	// kubectl table output needs version-aware column parsing that we keep
-	// out of scope until a concrete bug demands it.
-	_ = since
+	// --since: kubectl get events doesn't support it directly. Warn loudly
+	// rather than silently ignoring — user expecting filtered output would
+	// otherwise be puzzled why stale events come back.
+	if since != "" {
+		fmt.Fprintf(os.Stderr, "⚠️  --since %s: kubectl get events 不支持时间过滤, 已忽略 (请按 Age 列肉眼筛)\n", since)
+	}
 
 	fmt.Fprintf(os.Stderr, "📋 在 %s 上拉 k8s events", inst.Name)
 	if namespace != "" {

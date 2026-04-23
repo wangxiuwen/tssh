@@ -251,8 +251,12 @@ func doCopyViaOSS(src, dst, bucket string) {
 		fmt.Println("📦 step 3/3: 校验大小")
 		sizeRes, _ := client.RunCommand(inst.ID, fmt.Sprintf("stat -c%%s '%s'", shellQuote(remotePath)), 15)
 		got := strings.TrimSpace(decodeOutput(sizeRes.Output))
-		if want := strconv.FormatInt(fileInfo.Size(), 10); got != want {
-			fatal(fmt.Errorf("size mismatch: local=%s remote=%s", want, got), "verify")
+		gotN, convErr := strconv.ParseInt(got, 10, 64)
+		if convErr != nil {
+			fatal(fmt.Errorf("stat 失败, 远端返回: %s", shared.TruncateStr(got, 200)), "verify")
+		}
+		if gotN != fileInfo.Size() {
+			fatal(fmt.Errorf("size mismatch: local=%d remote=%d", fileInfo.Size(), gotN), "verify")
 		}
 		fmt.Println("✅ 完成")
 

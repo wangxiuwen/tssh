@@ -71,9 +71,17 @@ func cmdPortForward(target, spec string) {
 
 	localPort, err := strconv.Atoi(parts[0])
 	fatal(err, "invalid local port")
+	if localPort <= 0 || localPort > 65535 {
+		fmt.Fprintf(os.Stderr, "❌ 本地端口超出范围 (1-65535): %d\n", localPort)
+		os.Exit(1)
+	}
 	remoteHost := parts[1]
 	remotePort, err := strconv.Atoi(parts[2])
 	fatal(err, "invalid remote port")
+	if remotePort <= 0 || remotePort > 65535 {
+		fmt.Fprintf(os.Stderr, "❌ 远程端口超出范围 (1-65535): %d\n", remotePort)
+		os.Exit(1)
+	}
 
 	cache := getCache()
 	inst := resolveInstanceOrExit(cache, target)

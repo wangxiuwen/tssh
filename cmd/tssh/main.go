@@ -114,8 +114,12 @@ func main() {
 			os.Exit(1)
 		}
 		cfg := mustLoadConfig()
-		lp, _ := strconv.Atoi(filteredArgs[2])
-		rp, _ := strconv.Atoi(filteredArgs[3])
+		lp, lerr := strconv.Atoi(filteredArgs[2])
+		rp, rerr := strconv.Atoi(filteredArgs[3])
+		if lerr != nil || rerr != nil || lp <= 0 || lp > 65535 || rp <= 0 || rp > 65535 {
+			fmt.Fprintf(os.Stderr, "portforward: invalid ports %q/%q\n", filteredArgs[2], filteredArgs[3])
+			os.Exit(1)
+		}
 		if err := PortForward(cfg, filteredArgs[1], lp, rp); err != nil {
 			fmt.Fprintf(os.Stderr, "portforward: %v\n", err)
 			os.Exit(1)

@@ -70,9 +70,14 @@ func chunkedUpload(client *AliyunClient, instanceID, localPath, remoteDir, remot
 		return fmt.Errorf("assemble remote: %w", err)
 	}
 	gotStr := strings.TrimSpace(decodeOutput(res.Output))
-	got, _ := strconv.Atoi(gotStr)
+	got, convErr := strconv.Atoi(gotStr)
+	if convErr != nil {
+		// stat failed on remote — surface the actual message instead of a
+		// misleading "size mismatch: remote=<stderr>" line.
+		return fmt.Errorf("assemble failed (remote stat non-numeric): %s", shared.TruncateStr(gotStr, 200))
+	}
 	if got != total {
-		return fmt.Errorf("size mismatch: local=%d remote=%s", total, gotStr)
+		return fmt.Errorf("size mismatch: local=%d remote=%d", total, got)
 	}
 	return nil
 }

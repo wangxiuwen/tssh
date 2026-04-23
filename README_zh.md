@@ -47,6 +47,8 @@
 
 ## 快速安装
 
+### 方式一 — 全家桶
+
 从 [GitHub Releases](https://github.com/wangxiuwen/tssh/releases) 下载预编译二进制，或从源码编译：
 
 ```bash
@@ -56,9 +58,38 @@ make build
 sudo cp tssh /usr/local/bin/
 ```
 
-一键交叉编译所有平台：
+### 方式二 — 按维度装小 binary
+
+tssh 从同一套源码构建出一组按职责拆分的小二进制, 只装你需要的, 不带冗余依赖.
+
+| Binary     | 体积 (stripped) | 范围 |
+|---|---|---|
+| `tssh`      | ~10 MB | 下方所有能力 + ECS 管理 (connect/exec/cp/health/top/...) |
+| `tssh-k8s`  | ~8 MB  | `ks` (svc 诊断) / `kf` (端口转发) / `logs` / `events` |
+| `tssh-net`  | ~8 MB  | `socks` / `fwd` / `run` / `shell` / `vpn` / `browser` |
+| `tssh-arms` | ~8 MB  | `arms` (alerts / dash / ds / open / query / trace) |
+| `tssh-db`   | ~8 MB  | `redis` / `rds` (内置 RESP + MySQL wire 客户端) |
+
+所有小 binary:
+- 相同的 `--profile / -p` 语义, 共用 `~/.tssh/config.json`
+- 共用 `internal/` 代码, 不会和主 `tssh` 行为漂移
+- 子命令 CLI 与主 `tssh` 一致
+
 ```bash
-make all    # 编译 darwin/linux/windows × amd64/arm64
+# 本机编全部
+make build
+sudo cp tssh tssh-k8s tssh-net tssh-arms tssh-db /usr/local/bin/
+
+# 只编要的
+make tssh-k8s tssh-net
+sudo cp tssh-k8s tssh-net /usr/local/bin/
+```
+
+### 跨平台交叉编译
+
+```bash
+make all    # 5 个 binary × darwin/linux/windows × amd64/arm64
+            # = 30 个产物在 dist/
 ```
 
 ## 使用说明

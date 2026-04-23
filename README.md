@@ -63,6 +63,8 @@ Aliyun RAM AccessKeys. Credentials are searched in this order:
 
 ## Installation
 
+### Option 1 — full toolkit
+
 Download pre-built binaries from [GitHub Releases](https://github.com/wangxiuwen/tssh/releases), or compile from source:
 
 ```bash
@@ -72,9 +74,38 @@ make build
 sudo cp tssh /usr/local/bin/
 ```
 
-Cross-compile for all platforms:
+### Option 2 — slim binaries by capability
+
+tssh ships as a family of small single-responsibility binaries built from the
+same source. Install only what you need; skip the rest.
+
+| Binary     | Size (stripped) | Scope |
+|---|---|---|
+| `tssh`      | ~10 MB | Everything below, plus ECS management (connect/exec/cp/health/top/...) |
+| `tssh-k8s`  | ~8 MB  | `ks` (service diag) / `kf` (port-forward) / `logs` / `events` |
+| `tssh-net`  | ~8 MB  | `socks` / `fwd` / `run` / `shell` / `vpn` / `browser` |
+| `tssh-arms` | ~8 MB  | `arms` (alerts / dash / ds / open / query / trace) |
+| `tssh-db`   | ~8 MB  | `redis` / `rds` (built-in RESP and MySQL wire clients) |
+
+All slim binaries honour the same `--profile / -p` flag, read the same
+`~/.tssh/config.json`, and share `internal/` packages — so they can't drift
+in behaviour from the main `tssh` binary.
+
 ```bash
-make all    # Builds darwin/linux/windows × amd64/arm64
+# Build all five binaries locally
+make build
+sudo cp tssh tssh-k8s tssh-net tssh-arms tssh-db /usr/local/bin/
+
+# Or just the slim ones you want
+make tssh-k8s tssh-net
+sudo cp tssh-k8s tssh-net /usr/local/bin/
+```
+
+### Cross-compile for release
+
+```bash
+make all    # Builds all 5 binaries × darwin/linux/windows × amd64/arm64
+            # = 30 artifacts in dist/
 ```
 
 ## Usage

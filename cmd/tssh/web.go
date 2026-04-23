@@ -130,8 +130,12 @@ func cmdWeb(args []string) {
 			http.Error(w, "POST only", 405)
 			return
 		}
-		cmdSyncQuiet()
 		w.Header().Set("Content-Type", "application/json")
+		if err := cmdSyncQuiet(); err != nil {
+			w.WriteHeader(http.StatusBadGateway)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}))
 

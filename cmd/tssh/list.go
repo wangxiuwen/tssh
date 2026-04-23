@@ -65,18 +65,27 @@ func cmdSync() {
 	fmt.Fprintf(os.Stderr, "✅ 缓存已保存 (%d 台实例)\n", len(instances))
 }
 
-// cmdSyncQuiet fetches instances without printing progress (for auto-sync)
-func cmdSyncQuiet() {
-	config := mustLoadConfig()
+// cmdSyncQuiet fetches instances without printing progress (for auto-sync).
+// Returns error instead of os.Exit so callers running in a long-lived process
+// (tssh web, auto-refresh in main) don't die on a transient API failure.
+func cmdSyncQuiet() error {
+	config, err := LoadConfig()
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
 	client, err := NewAliyunClient(config)
-	fatal(err, "create client")
-
+	if err != nil {
+		return fmt.Errorf("create client: %w", err)
+	}
 	instances, err := client.FetchAllInstances()
-	fatal(err, "fetch instances")
-
+	if err != nil {
+		return fmt.Errorf("fetch instances: %w", err)
+	}
 	cache := getCache()
-	err = cache.Save(instances)
-	fatal(err, "save cache")
+	if err := cache.Save(instances); err != nil {
+		return fmt.Errorf("save cache: %w", err)
+	}
+	return nil
 }
 
 // execOptions holds parsed flags for the exec command

@@ -346,7 +346,10 @@ func mustLoadConfig() *Config {
 func ensureCache(cache *Cache) {
 	if !cache.Exists() {
 		fmt.Fprintln(os.Stderr, "⚠️  缓存不存在，正在同步...")
-		cmdSyncQuiet()
+		if err := cmdSyncQuiet(); err != nil {
+			fmt.Fprintf(os.Stderr, "❌ 同步失败: %v\n", err)
+			os.Exit(1)
+		}
 		return
 	}
 

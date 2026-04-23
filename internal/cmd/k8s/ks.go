@@ -89,10 +89,14 @@ func KS(rt core.Runtime, args []string) {
 	//
 	// Using placeholder substitution (not fmt.Sprintf) because the script
 	// contains awk/printf %s sequences that Go vet misreads as format verbs.
+	// Substitutions are wrapped in single quotes so ShellQuote-escaped content
+	// (which may contain spaces or shell metacharacters) stays as a single
+	// shell word. Without the quotes, `SVC=foo bar` would parse as "set SVC=foo
+	// and run command bar".
 	script := `#!/bin/bash
 set -o pipefail
-SVC=__SVC__
-NS=__NS__
+SVC='__SVC__'
+NS='__NS__'
 NSFLAG=__NSFLAG__
 echo "svc=${SVC}"
 echo "ns=${NS:-default}"

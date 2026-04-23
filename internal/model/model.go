@@ -29,6 +29,21 @@ type CommandResult struct {
 	ExitCode int
 }
 
+// InvocationStatus is a single-shot snapshot of a Cloud Assistant invocation.
+// Returned by FetchInvocation; lets callers inspect a running or finished command
+// without the blocking polling of RunCommand.
+type InvocationStatus struct {
+	InvokeID     string `json:"invoke_id"`
+	InstanceID   string `json:"instance_id"`
+	Status       string `json:"status"`   // Running / Success / Failed / Stopped / Finished / Pending / PartialFailed
+	Output       string `json:"output"`   // base64-decoded remote stdout
+	ExitCode     int    `json:"exit_code"`
+	ErrorCode    string `json:"error_code,omitempty"`
+	ErrorInfo    string `json:"error_info,omitempty"`
+	StartTime    string `json:"start_time,omitempty"`
+	FinishedTime string `json:"finished_time,omitempty"`
+}
+
 // InstanceDetail holds extended instance information
 type InstanceDetail struct {
 	InstanceType     string

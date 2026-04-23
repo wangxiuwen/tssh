@@ -24,6 +24,7 @@ type mockECS struct {
 	stopInstanceFn              func(req *ecs.StopInstanceRequest) (*ecs.StopInstanceResponse, error)
 	startInstanceFn             func(req *ecs.StartInstanceRequest) (*ecs.StartInstanceResponse, error)
 	rebootInstanceFn            func(req *ecs.RebootInstanceRequest) (*ecs.RebootInstanceResponse, error)
+	stopInvocationFn            func(req *ecs.StopInvocationRequest) (*ecs.StopInvocationResponse, error)
 }
 
 func (m *mockECS) DescribeInstances(req *ecs.DescribeInstancesRequest) (*ecs.DescribeInstancesResponse, error) {
@@ -73,6 +74,12 @@ func (m *mockECS) RebootInstance(req *ecs.RebootInstanceRequest) (*ecs.RebootIns
 		return m.rebootInstanceFn(req)
 	}
 	return &ecs.RebootInstanceResponse{}, nil
+}
+func (m *mockECS) StopInvocation(req *ecs.StopInvocationRequest) (*ecs.StopInvocationResponse, error) {
+	if m.stopInvocationFn != nil {
+		return m.stopInvocationFn(req)
+	}
+	return &ecs.StopInvocationResponse{}, nil
 }
 
 func newTestClient(mock *mockECS) *Client {
@@ -853,9 +860,175 @@ func TestWaitForResult_Timeout(t *testing.T) {
 	}
 	c := newTestClient(mock)
 	// Call waitForResult directly with -10 timeout so deadline is already past
-	_, err := c.waitForResult("inv", "i-001", -10)
+	_, err := c.waitForResult("inv-xyz", "i-001", -10)
 	if err == nil {
 		t.Fatal("expected timeout error")
+	}
+	te, ok := err.(*TimeoutError)
+	if !ok {
+		t.Fatalf("expected *TimeoutError, got %T: %v", err, err)
+	}
+	if te.InvokeID != "inv-xyz" || te.InstanceID != "i-001" {
+		t.Errorf("wrong fields: %+v", te)
+	}
+	// Error message should mention --fetch so the user knows how to recover
+	if !strings.Contains(te.Error(), "--fetch") {
+		t.Errorf("error message missing --fetch hint: %s", te.Error())
+	}
+}
+
+func TestSubmitCommand_Success(t *testing.T) {
+	mock := &mockECS{
+		runCommandFn: func(req *ecs.RunCommandRequest) (*ecs.RunCommandResponse, error) {
+			resp := &ecs.RunCommandResponse{}
+			resp.InvokeId = "inv-42"
+			return resp, nil
+		},
+	}
+	c := newTestClient(mock)
+	id, err := c.SubmitCommand("i-001", "uptime", 30)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if id != "inv-42" {
+		t.Errorf("expected inv-42, got %s", id)
+	}
+}
+
+func TestSubmitCommand_Throttled(t *testing.T) {
+	calls := 0
+	mock := &mockECS{
+		runCommandFn: func(req *ecs.RunCommandRequest) (*ecs.RunCommandResponse, error) {
+			calls++
+			if calls < 3 {
+				return nil, fmt.Errorf("Throttling.User")
+			}
+			resp := &ecs.RunCommandResponse{}
+			resp.InvokeId = "inv-ok"
+			return resp, nil
+		},
+	}
+	c := newTestClient(mock)
+	id, err := c.SubmitCommand("i-001", "cmd", 30)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if id != "inv-ok" || calls != 3 {
+		t.Errorf("expected id=inv-ok calls=3, got id=%s calls=%d", id, calls)
+	}
+}
+
+func TestSubmitCommand_APIError(t *testing.T) {
+	mock := &mockECS{
+		runCommandFn: func(req *ecs.RunCommandRequest) (*ecs.RunCommandResponse, error) {
+			return nil, fmt.Errorf("InvalidInstance")
+		},
+	}
+	c := newTestClient(mock)
+	_, err := c.SubmitCommand("i-001", "cmd", 30)
+	if err == nil {
+		t.Error("expected error")
+	}
+}
+
+func TestFetchInvocation_Success(t *testing.T) {
+	var captured *ecs.DescribeInvocationResultsRequest
+	mock := &mockECS{
+		describeInvocationResultsFn: func(req *ecs.DescribeInvocationResultsRequest) (*ecs.DescribeInvocationResultsResponse, error) {
+			captured = req
+			resp := &ecs.DescribeInvocationResultsResponse{}
+			resp.Invocation.InvocationResults.InvocationResult = []ecs.InvocationResult{
+				{InvokeId: "inv-1", InstanceId: "i-001", InvocationStatus: "Success", ExitCode: 0, Output: "aGVsbG8=", StartTime: "2026-01-01", FinishedTime: "2026-01-02"},
+			}
+			return resp, nil
+		},
+	}
+	c := newTestClient(mock)
+	st, err := c.FetchInvocation("inv-1", "i-001")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if st.Status != "Success" || st.InvokeID != "inv-1" || st.InstanceID != "i-001" {
+		t.Errorf("unexpected status: %+v", st)
+	}
+	if st.Output != "aGVsbG8=" {
+		t.Errorf("unexpected output: %s", st.Output)
+	}
+	if captured == nil || captured.InvokeId != "inv-1" || captured.InstanceId != "i-001" {
+		t.Errorf("wrong request: %+v", captured)
+	}
+}
+
+func TestFetchInvocation_EmptyInvokeID(t *testing.T) {
+	c := newTestClient(&mockECS{})
+	_, err := c.FetchInvocation("", "i-001")
+	if err == nil {
+		t.Error("expected error")
+	}
+}
+
+func TestFetchInvocation_NoResults(t *testing.T) {
+	mock := &mockECS{
+		describeInvocationResultsFn: func(req *ecs.DescribeInvocationResultsRequest) (*ecs.DescribeInvocationResultsResponse, error) {
+			return &ecs.DescribeInvocationResultsResponse{}, nil
+		},
+	}
+	c := newTestClient(mock)
+	_, err := c.FetchInvocation("inv-ghost", "")
+	if err == nil {
+		t.Error("expected error for missing invocation")
+	}
+}
+
+func TestFetchInvocation_APIError(t *testing.T) {
+	mock := &mockECS{
+		describeInvocationResultsFn: func(req *ecs.DescribeInvocationResultsRequest) (*ecs.DescribeInvocationResultsResponse, error) {
+			return nil, fmt.Errorf("boom")
+		},
+	}
+	c := newTestClient(mock)
+	_, err := c.FetchInvocation("inv-1", "")
+	if err == nil {
+		t.Error("expected error")
+	}
+}
+
+func TestStopInvocation_Success(t *testing.T) {
+	var captured *ecs.StopInvocationRequest
+	mock := &mockECS{
+		stopInvocationFn: func(req *ecs.StopInvocationRequest) (*ecs.StopInvocationResponse, error) {
+			captured = req
+			return &ecs.StopInvocationResponse{}, nil
+		},
+	}
+	c := newTestClient(mock)
+	if err := c.StopInvocation("inv-1", []string{"i-001", "i-002"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if captured == nil || captured.InvokeId != "inv-1" {
+		t.Errorf("wrong InvokeId: %+v", captured)
+	}
+	if captured.InstanceId == nil || len(*captured.InstanceId) != 2 {
+		t.Errorf("wrong instance list: %+v", captured.InstanceId)
+	}
+}
+
+func TestStopInvocation_EmptyInvokeID(t *testing.T) {
+	c := newTestClient(&mockECS{})
+	if err := c.StopInvocation("", nil); err == nil {
+		t.Error("expected error")
+	}
+}
+
+func TestStopInvocation_APIError(t *testing.T) {
+	mock := &mockECS{
+		stopInvocationFn: func(req *ecs.StopInvocationRequest) (*ecs.StopInvocationResponse, error) {
+			return nil, fmt.Errorf("boom")
+		},
+	}
+	c := newTestClient(mock)
+	if err := c.StopInvocation("inv-1", nil); err == nil {
+		t.Error("expected error")
 	}
 }
 

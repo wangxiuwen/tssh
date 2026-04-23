@@ -133,6 +133,23 @@ tssh exec --notify https://hook.example.com/webhook -g "prod" "apt update"
 # Default timeout via env var
 export TSSH_DEFAULT_TIMEOUT=300
 tssh exec -g "prod" "long-task"
+
+# --- Long-running / resumable execution ---
+
+# Fire and forget: print InvokeId, exit immediately (docker build, migrations, ...)
+tssh exec --async my-server "docker build -t foo . && docker push foo"
+#   t-hyz1xxxxxxxxxxxx    my-server    10.0.0.5
+
+# Fetch output later — works for Running (partial) or Finished invocations
+tssh exec --fetch t-hyz1xxxxxxxxxxxx
+
+# Stop a runaway command
+tssh exec --stop t-hyz1xxxxxxxxxxxx
+
+# Blocking mode still emits InvokeId on timeout, so you can recover:
+tssh exec --timeout 60 my-server "sleep 3600"
+# ❌ Error: command timed out after 60s (invoke_id=t-xxx, 用 `tssh exec --fetch t-xxx` 取结果)
+tssh exec --fetch t-xxx
 ```
 
 ### Connectivity Test

@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const version = "1.10.0"
+const version = "1.11.0"
 
 // Global flags parsed from os.Args before subcommand dispatch
 var globalProfile string
@@ -271,6 +271,11 @@ exec 选项:
   --progress       显示进度
   --tag <k=v>      按标签过滤
   -                从 stdin 读取
+
+exec 异步/恢复 (长任务推荐):
+  --async          提交后立即返回 InvokeId, 不等待结果
+  --fetch <id>     按 InvokeId 单次拉取输出 (Running 也能看到部分输出)
+  --stop <id>      按 InvokeId 强停远程命令
 
 端口转发简写:
   tssh -L 3306 myhost              等价于 -L 3306:localhost:3306

@@ -27,6 +27,8 @@ type TraceInfo = aliyun.TraceInfo
 type TraceSpan = aliyun.TraceSpan
 type TraceTag = aliyun.TraceTag
 type TraceSearchOptions = aliyun.TraceSearchOptions
+type InvocationStatus = model.InvocationStatus
+type TimeoutError = aliyun.TimeoutError
 type Cache = cache.Cache
 
 // Function wrappers

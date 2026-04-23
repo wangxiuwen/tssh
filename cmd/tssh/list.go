@@ -94,4 +94,7 @@ type execOptions struct {
 	pattern    string
 	targets    []string
 	command    string
+	asyncMode  bool   // submit only, print InvokeId, exit 0
+	fetchID    string // one-shot DescribeInvocationResults
+	stopID     string // cancel a running invocation
 }

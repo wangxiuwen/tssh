@@ -25,6 +25,21 @@ type ecsAPI interface {
 	StopInstance(req *ecs.StopInstanceRequest) (*ecs.StopInstanceResponse, error)
 	StartInstance(req *ecs.StartInstanceRequest) (*ecs.StartInstanceResponse, error)
 	RebootInstance(req *ecs.RebootInstanceRequest) (*ecs.RebootInstanceResponse, error)
+	StopInvocation(req *ecs.StopInvocationRequest) (*ecs.StopInvocationResponse, error)
+}
+
+// TimeoutError is returned by RunCommand when the local poll deadline
+// is reached while the Cloud Assistant invocation is still running.
+// The InvokeID can be used with FetchInvocation to retrieve the output later.
+type TimeoutError struct {
+	InvokeID   string
+	InstanceID string
+	TimeoutSec int
+}
+
+func (e *TimeoutError) Error() string {
+	return fmt.Sprintf("command timed out after %ds (invoke_id=%s, 用 `tssh exec --fetch %s` 取结果, `tssh exec --stop %s` 中止)",
+		e.TimeoutSec, e.InvokeID, e.InvokeID, e.InvokeID)
 }
 
 // Client wraps the ECS client with rate limiting
@@ -241,8 +256,10 @@ func wrapCommand(command string) string {
 	return fmt.Sprintf("export COLUMNS=32767; eval \"$(echo '%s' | base64 -d)\"", encoded)
 }
 
-// RunCommand executes a command on an instance with retry on throttling
-func (a *Client) RunCommand(instanceID, command string, timeoutSec int) (*model.CommandResult, error) {
+// SubmitCommand submits a command for asynchronous execution via Cloud Assistant
+// and returns the InvokeID immediately. The command keeps running on the remote
+// until it finishes or StopInvocation is called — caller is not blocked.
+func (a *Client) SubmitCommand(instanceID, command string, timeoutSec int) (string, error) {
 	if timeoutSec <= 0 {
 		timeoutSec = 60
 	}
@@ -265,14 +282,79 @@ func (a *Client) RunCommand(instanceID, command string, timeoutSec int) (*model.
 			break
 		}
 		if !isThrottled(err) {
-			return nil, fmt.Errorf("RunCommand failed: %w", err)
+			return "", fmt.Errorf("RunCommand failed: %w", err)
 		}
 		a.sleep(time.Duration(1<<uint(retry)) * time.Second)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("RunCommand failed (throttled): %w", err)
+		return "", fmt.Errorf("RunCommand failed (throttled): %w", err)
 	}
-	return a.waitForResult(resp.InvokeId, instanceID, timeoutSec)
+	return resp.InvokeId, nil
+}
+
+// RunCommand submits a command and blocks until it finishes or timeoutSec is reached.
+// On timeout it returns a *TimeoutError carrying the InvokeID so the caller can
+// resume with FetchInvocation later.
+func (a *Client) RunCommand(instanceID, command string, timeoutSec int) (*model.CommandResult, error) {
+	invokeID, err := a.SubmitCommand(instanceID, command, timeoutSec)
+	if err != nil {
+		return nil, err
+	}
+	return a.waitForResult(invokeID, instanceID, timeoutSec)
+}
+
+// FetchInvocation returns a single-shot snapshot of an invocation.
+// InstanceID is optional; when empty the first entry in the response is used.
+// For Running/Pending invocations Output may be partial or empty.
+func (a *Client) FetchInvocation(invokeID, instanceID string) (*model.InvocationStatus, error) {
+	if invokeID == "" {
+		return nil, fmt.Errorf("invokeID 不能为空")
+	}
+	a.rateLimit()
+	req := ecs.CreateDescribeInvocationResultsRequest()
+	req.RegionId = a.region
+	req.InvokeId = invokeID
+	if instanceID != "" {
+		req.InstanceId = instanceID
+	}
+	resp, err := a.api.DescribeInvocationResults(req)
+	if err != nil {
+		return nil, fmt.Errorf("DescribeInvocationResults: %w", err)
+	}
+	if len(resp.Invocation.InvocationResults.InvocationResult) == 0 {
+		return nil, fmt.Errorf("invocation %s 未找到结果 (实例是否已重启/停止?)", invokeID)
+	}
+	r := resp.Invocation.InvocationResults.InvocationResult[0]
+	return &model.InvocationStatus{
+		InvokeID:     r.InvokeId,
+		InstanceID:   r.InstanceId,
+		Status:       r.InvocationStatus,
+		Output:       r.Output,
+		ExitCode:     int(r.ExitCode),
+		ErrorCode:    r.ErrorCode,
+		ErrorInfo:    r.ErrorInfo,
+		StartTime:    r.StartTime,
+		FinishedTime: r.FinishedTime,
+	}, nil
+}
+
+// StopInvocation cancels one or more running invocations. If instanceIDs is empty,
+// all instances bound to the InvokeID are affected.
+func (a *Client) StopInvocation(invokeID string, instanceIDs []string) error {
+	if invokeID == "" {
+		return fmt.Errorf("invokeID 不能为空")
+	}
+	a.rateLimit()
+	req := ecs.CreateStopInvocationRequest()
+	req.RegionId = a.region
+	req.InvokeId = invokeID
+	if len(instanceIDs) > 0 {
+		req.InstanceId = &instanceIDs
+	}
+	if _, err := a.api.StopInvocation(req); err != nil {
+		return fmt.Errorf("StopInvocation: %w", err)
+	}
+	return nil
 }
 
 func (a *Client) waitForResult(invokeID, instanceID string, timeoutSec int) (*model.CommandResult, error) {
@@ -312,7 +394,7 @@ func (a *Client) waitForResult(invokeID, instanceID string, timeoutSec int) (*mo
 			}
 		}
 	}
-	return nil, fmt.Errorf("command timed out after %ds", timeoutSec)
+	return nil, &TimeoutError{InvokeID: invokeID, InstanceID: instanceID, TimeoutSec: timeoutSec}
 }
 
 // SendFile uploads a file to an instance via Cloud Assistant

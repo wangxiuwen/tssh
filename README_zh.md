@@ -110,6 +110,23 @@ tssh exec -s deploy.sh my-server
 
 # 自定义超时
 tssh exec --timeout 120 my-server "long-running-task"
+
+# --- 长任务异步/恢复 ---
+
+# 提交即返回 InvokeId, 本地立刻退出（适合 docker build / 数据迁移等长任务）
+tssh exec --async my-server "docker build -t foo . && docker push foo"
+#   t-hyz1xxxxxxxxxxxx    my-server    10.0.0.5
+
+# 稍后拉取结果 — Running 状态也能看到已产生的部分输出
+tssh exec --fetch t-hyz1xxxxxxxxxxxx
+
+# 强停跑飞的命令
+tssh exec --stop t-hyz1xxxxxxxxxxxx
+
+# 阻塞模式超时时也会打印 InvokeId, 可继续 --fetch 取结果
+tssh exec --timeout 60 my-server "sleep 3600"
+# ❌ Error: command timed out after 60s (invoke_id=t-xxx, 用 `tssh exec --fetch t-xxx` 取结果)
+tssh exec --fetch t-xxx
 ```
 
 ### 连通性测试

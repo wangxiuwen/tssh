@@ -56,6 +56,18 @@ func parseExecArgs(args []string) *execOptions {
 				opts.notifyURL = args[i+1]
 				i++
 			}
+		case "--async":
+			opts.asyncMode = true
+		case "--fetch":
+			if i+1 < len(args) {
+				opts.fetchID = args[i+1]
+				i++
+			}
+		case "--stop":
+			if i+1 < len(args) {
+				opts.stopID = args[i+1]
+				i++
+			}
 		default:
 			positional = append(positional, args[i])
 		}
@@ -73,6 +85,16 @@ func parseExecArgs(args []string) *execOptions {
 // cmdExec runs commands on one or more instances via Cloud Assistant
 func cmdExec(args []string) {
 	opts := parseExecArgs(args)
+
+	// Invocation management modes — operate on InvokeId, not instance name.
+	if opts.fetchID != "" {
+		cmdExecFetch(opts)
+		return
+	}
+	if opts.stopID != "" {
+		cmdExecStop(opts)
+		return
+	}
 
 	// Determine command
 	command := opts.command
@@ -138,6 +160,13 @@ func cmdExec(args []string) {
 		os.Exit(1)
 	}
 
+	// Async mode: submit and exit, so long-running commands (docker build, etc.)
+	// aren't lost on local timeout. User retrieves output via `tssh exec --fetch`.
+	if opts.asyncMode {
+		cmdExecAsync(client, targets, command, opts)
+		return
+	}
+
 	if !opts.quietMode && !opts.jsonMode {
 		fmt.Fprintf(os.Stderr, "🚀 在 %d 台机器上执行: %s\n\n", len(targets), truncateStr(command, 80))
 	}
@@ -149,6 +178,7 @@ func cmdExec(args []string) {
 		Error    string `json:"error,omitempty"`
 		ExitCode int    `json:"exit_code"`
 		Skipped  bool   `json:"skipped,omitempty"`
+		InvokeID string `json:"invoke_id,omitempty"` // set on timeout — use with --fetch
 	}
 	results := make([]execResult, len(targets))
 	var wg sync.WaitGroup
@@ -170,6 +200,11 @@ func cmdExec(args []string) {
 			r := execResult{Name: inst.Name, IP: inst.PrivateIP}
 			if err != nil {
 				r.Error = err.Error()
+				// Timeout carries InvokeID so the user (or downstream tooling) can
+				// retrieve output later via `tssh exec --fetch <id>`.
+				if te, ok := err.(*TimeoutError); ok {
+					r.InvokeID = te.InvokeID
+				}
 				if result != nil {
 					r.ExitCode = result.ExitCode
 					r.Output = decodeOutput(result.Output)

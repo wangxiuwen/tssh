@@ -83,8 +83,10 @@ cmd/
 - [x] cmd/tssh-k8s 真能跑 events/ks/logs (v1.16.0-refactor.7)
       kf 需要 port-forward hook — 下一轮把 session/portforward/socat 挪到
       internal 后 tssh-k8s 就能全功能
-- [ ] Makefile 加 targets: `make tssh-net`, `make tssh-k8s`, ...
-- [ ] Release workflow 多 binary × 多 platform
+- [x] Makefile 支持 `BINARIES = tssh tssh-k8s`, `make all` 自动 2×6 = 12
+      个 cross-compiled 产物 (v1.16.0-refactor.8)
+- [x] release.yml 零改动 (make all 产物已全部上传)
+- [ ] 后续新 binary (tssh-net / tssh-db / tssh-arms) 只要加到 BINARIES 即可
 
 ### Phase 4 — 文档 & 安装建议
 - README 分节: 有洁癖只装对应 binary, 懒就装 tssh 全家桶

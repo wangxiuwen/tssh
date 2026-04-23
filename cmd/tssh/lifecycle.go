@@ -39,18 +39,26 @@ func cmdLifecycle(action string, args []string) {
 		"reboot": "重启",
 	}
 
-	// Destructive ops get a confirmation prompt by default. Skip with -y or
-	// when stdin is not a TTY (pipelines / scripts). `start` is non-destructive
-	// so we never prompt.
-	if (action == "stop" || action == "reboot") && !assumeYes && isTerminal() {
-		fmt.Fprintf(os.Stderr, "⚠️  即将%s实例 %s (%s) — 当前状态 %s\n", actionNames[action], inst.Name, inst.ID, inst.Status)
-		fmt.Fprint(os.Stderr, "继续? [y/N] ")
-		reader := bufio.NewReader(os.Stdin)
-		ans, _ := reader.ReadString('\n')
-		ans = strings.TrimSpace(strings.ToLower(ans))
-		if ans != "y" && ans != "yes" {
-			fmt.Fprintln(os.Stderr, "已取消")
-			os.Exit(1)
+	// Destructive ops require explicit consent. `start` is non-destructive so
+	// we never prompt. For stop/reboot:
+	//   - TTY: interactive prompt (unless -y)
+	//   - Non-TTY (pipeline/script): must pass -y, otherwise refuse — we don't
+	//     want an accidental `echo foo | tssh stop ...` to silently proceed.
+	if action == "stop" || action == "reboot" {
+		if !assumeYes {
+			if !isTerminal() {
+				fmt.Fprintf(os.Stderr, "❌ 非交互环境 (stdin 非 TTY) 必须显式加 -y/--yes 才能%s\n", actionNames[action])
+				os.Exit(2)
+			}
+			fmt.Fprintf(os.Stderr, "⚠️  即将%s实例 %s (%s) — 当前状态 %s\n", actionNames[action], inst.Name, inst.ID, inst.Status)
+			fmt.Fprint(os.Stderr, "继续? [y/N] ")
+			reader := bufio.NewReader(os.Stdin)
+			ans, _ := reader.ReadString('\n')
+			ans = strings.TrimSpace(strings.ToLower(ans))
+			if ans != "y" && ans != "yes" {
+				fmt.Fprintln(os.Stderr, "已取消")
+				os.Exit(1)
+			}
 		}
 	}
 

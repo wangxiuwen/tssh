@@ -276,9 +276,15 @@ func FuzzySelect(instances []Instance, initialQuery string) (*Instance, error) {
 		return nil, err
 	}
 
-	final := result.(selectorModel)
-	if final.quit || final.selected < 0 {
+	// bubbletea normally returns our model, but if upstream ever changes
+	// the contract (or Run exits before drawing) the bare cast below would
+	// panic. Fall back to "cancelled" instead.
+	final, ok := result.(selectorModel)
+	if !ok || final.quit || final.selected < 0 {
 		return nil, fmt.Errorf("cancelled")
+	}
+	if final.selected >= len(instances) {
+		return nil, fmt.Errorf("bad selection index %d/%d", final.selected, len(instances))
 	}
 	return &instances[final.selected], nil
 }

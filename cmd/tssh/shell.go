@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -24,9 +25,12 @@ func cmdShell(args []string) {
 	remotePort := 19080
 	shellOverride := ""
 	var target string
+	var jsonMode bool
 
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
+		case "-j", "--json":
+			jsonMode = true
 		case "-p", "--port":
 			if i+1 >= len(args) {
 				fmt.Fprintln(os.Stderr, "❌ -p 需要一个端口号")
@@ -106,12 +110,25 @@ func cmdShell(args []string) {
 		shellName = shellName[idx+1:]
 	}
 
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintf(os.Stderr, "🧦 子 shell 准备就绪 — 所有 TCP 通过 %s\n", inst.Name)
-	fmt.Fprintf(os.Stderr, "   ALL_PROXY=socks5h://127.0.0.1:%d\n", localPort)
-	fmt.Fprintf(os.Stderr, "   JVM 自动走 SOCKS (JAVA_TOOL_OPTIONS)\n")
-	fmt.Fprintln(os.Stderr, "   退出子 shell (exit / Ctrl-D) 会自动关闭 SOCKS.")
-	fmt.Fprintln(os.Stderr)
+	if jsonMode {
+		payload := map[string]interface{}{
+			"local_port": localPort,
+			"proxy":      fmt.Sprintf("socks5h://127.0.0.1:%d", localPort),
+			"via":        inst.Name,
+			"jump_id":    inst.ID,
+			"shell":      shellPath,
+		}
+		b, _ := json.Marshal(payload)
+		fmt.Println(string(b))
+		os.Stdout.Sync()
+	} else {
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintf(os.Stderr, "🧦 子 shell 准备就绪 — 所有 TCP 通过 %s\n", inst.Name)
+		fmt.Fprintf(os.Stderr, "   ALL_PROXY=socks5h://127.0.0.1:%d\n", localPort)
+		fmt.Fprintf(os.Stderr, "   JVM 自动走 SOCKS (JAVA_TOOL_OPTIONS)\n")
+		fmt.Fprintln(os.Stderr, "   退出子 shell (exit / Ctrl-D) 会自动关闭 SOCKS.")
+		fmt.Fprintln(os.Stderr)
+	}
 
 	env := buildShellEnv(os.Environ(), localPort, inst.Name, shellName)
 
@@ -223,6 +240,10 @@ func printShellHelp() {
 选项:
   -p, --port <port>     本地 SOCKS5 监听端口 (默认 1080)
   --shell <path>        指定 shell (默认 $SHELL, 否则 /bin/bash)
+  -j, --json            spawn shell 前 stdout 打印一行 JSON (AI 上下文)
+
+JSON 输出:
+  {"local_port":1080,"proxy":"socks5h://127.0.0.1:1080","via":"prod-jump","jump_id":"i-...","shell":"/bin/zsh"}
 
 子 shell 内自动有的环境变量:
   ALL_PROXY / all_proxy       socks5h://127.0.0.1:<port>

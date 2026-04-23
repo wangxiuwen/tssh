@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -33,9 +34,12 @@ func cmdVPN(args []string) {
 	cidrList := ""
 	tunName := ""
 	var target string
+	var jsonMode bool
 
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
+		case "-j", "--json":
+			jsonMode = true
 		case "--cidr":
 			if i+1 >= len(args) {
 				fmt.Fprintln(os.Stderr, "❌ --cidr 需要一个值 (如 10.0.0.0/16,172.16.0.0/12)")
@@ -185,10 +189,25 @@ sudo 下 PATH 可能被重置, 可用: sudo env "PATH=$PATH" tssh vpn ...`)
 		addedRoutes = append(addedRoutes, undoArgs)
 	}
 
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintf(os.Stderr, "🌐 VPN 上线 — CIDR %s 的所有 TCP/UDP 通过 %s\n", cidrList, inst.Name)
-	fmt.Fprintf(os.Stderr, "   TUN: %s   SOCKS5: 127.0.0.1:%d   tun2socks PID: %d\n", tunName, socksLocalPort, t2sCmd.Process.Pid)
-	fmt.Fprintln(os.Stderr, "   按 Ctrl+C 退出 — 路由/tun 设备/远端 microsocks 都会自动清理.")
+	if jsonMode {
+		payload := map[string]interface{}{
+			"tun":              tunName,
+			"cidrs":            cidrs,
+			"socks_local_port": socksLocalPort,
+			"via":              inst.Name,
+			"jump_id":          inst.ID,
+			"tun2socks_pid":    t2sCmd.Process.Pid,
+			"pid":              os.Getpid(),
+		}
+		b, _ := json.Marshal(payload)
+		fmt.Println(string(b))
+		os.Stdout.Sync()
+	} else {
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintf(os.Stderr, "🌐 VPN 上线 — CIDR %s 的所有 TCP/UDP 通过 %s\n", cidrList, inst.Name)
+		fmt.Fprintf(os.Stderr, "   TUN: %s   SOCKS5: 127.0.0.1:%d   tun2socks PID: %d\n", tunName, socksLocalPort, t2sCmd.Process.Pid)
+		fmt.Fprintln(os.Stderr, "   按 Ctrl+C 退出 — 路由/tun 设备/远端 microsocks 都会自动清理.")
+	}
 
 	// --- 5. Wait for Ctrl-C, then unwind in reverse order.
 	sigCh := make(chan os.Signal, 1)
@@ -284,6 +303,11 @@ L3 透明代理: 把指定 CIDR 的所有 TCP/UDP 通过远端 ECS.
   <name>           跳板 ECS (自动起 microsocks)
   --cidr <list>    要劫持的 CIDR, 逗号分隔 (如 10.0.0.0/16 或多段)
   --tun <dev>      TUN 名 (默认: Linux tssh0, macOS utun 自动)
+  -j, --json       VPN 上线后 stdout 打印一行 JSON (AI/脚本用)
+
+JSON 输出:
+  {"tun":"tssh0","cidrs":["10.0.0.0/16"],"socks_local_port":54321,
+   "via":"prod-jump","jump_id":"i-...","tun2socks_pid":1234,"pid":5678}
 
 依赖:
   - root / sudo (添加路由 + 创建 TUN 设备)

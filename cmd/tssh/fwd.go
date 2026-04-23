@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -22,9 +23,14 @@ import (
 func cmdFwd(args []string) {
 	var target, via string
 	var localPort int
+	var jsonMode, quietMode bool
 
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
+		case "-j", "--json":
+			jsonMode = true
+		case "-q", "--quiet":
+			quietMode = true
 		case "--via":
 			if i+1 >= len(args) {
 				fmt.Fprintln(os.Stderr, "❌ --via 需要一个 name/id")
@@ -103,15 +109,35 @@ func cmdFwd(args []string) {
 	}
 	defer stop()
 
-	fmt.Println()
-	fmt.Printf("📡 127.0.0.1:%d  →  %s:%d  (via %s)\n", localPort, host, port, jumpHost.Name)
-	fmt.Println()
-	fmt.Println("按 Ctrl+C 退出")
+	// JSON mode: one line on stdout, structured so AI agents / scripts can
+	// parse it directly and start using local_port. Human mode keeps the
+	// emoji-rich layout on stderr.
+	if jsonMode {
+		payload := map[string]interface{}{
+			"local_port":  localPort,
+			"host":        host,
+			"remote_port": port,
+			"jump":        jumpHost.Name,
+			"jump_id":     jumpHost.ID,
+			"pid":         os.Getpid(),
+		}
+		b, _ := json.Marshal(payload)
+		fmt.Println(string(b))
+		// Flush stdout so `tssh fwd -j &` consumers can readline right away.
+		os.Stdout.Sync()
+	} else if !quietMode {
+		fmt.Println()
+		fmt.Printf("📡 127.0.0.1:%d  →  %s:%d  (via %s)\n", localPort, host, port, jumpHost.Name)
+		fmt.Println()
+		fmt.Println("按 Ctrl+C 退出")
+	}
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 	<-sigCh
-	fmt.Fprintln(os.Stderr, "\n🛑 清理中...")
+	if !quietMode && !jsonMode {
+		fmt.Fprintln(os.Stderr, "\n🛑 清理中...")
+	}
 }
 
 // resolveFwdTarget expands a tssh fwd target into host:port + optional VPC.
@@ -288,7 +314,7 @@ func findFreePortInRange(start, end int) int {
 }
 
 func printFwdHelp() {
-	fmt.Println(`用法: tssh fwd <target> [--via <name>] [--local <port>]
+	fmt.Println(`用法: tssh fwd <target> [--via <name>] [--local <port>] [-j] [-q]
 
 零配置端口转发. 自动挑同 VPC 的 ECS 当跳板, 自动分配本地端口.
 
@@ -301,6 +327,11 @@ target 格式:
 选项:
   --via <name>      指定跳板机, 不写就自动挑同 VPC 的第一台 Running ECS
   -p, --local <p>   固定本地端口, 不写就自动分配一个空闲端口
+  -j, --json        启动成功后 stdout 打印一行 JSON, AI/脚本可 parse
+  -q, --quiet       静默模式 (只输出错误)
+
+JSON 模式输出 (stdout 一行):
+  {"local_port":54321,"host":"rds.internal","remote_port":3306,"jump":"prod-jump","jump_id":"i-...","pid":12345}
 
 示例:
   tssh fwd rds-prod.internal:3306

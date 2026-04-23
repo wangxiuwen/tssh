@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -26,9 +27,25 @@ func cmdRun(args []string) {
 	toSpec := ""
 	via := ""
 	sepIdx := -1
+	jsonMode := false
+	statusFile := ""
 	i := 0
 	for i < len(args) {
 		switch args[i] {
+		case "-j", "--json":
+			// JSON to stderr; caveat: child's stderr gets mixed in. Prefer
+			// --status-file for clean capture.
+			jsonMode = true
+			i++
+			continue
+		case "--status-file":
+			if i+1 >= len(args) {
+				fmt.Fprintln(os.Stderr, "❌ --status-file 需要一个路径")
+				os.Exit(2)
+			}
+			statusFile = args[i+1]
+			i += 2
+			continue
 		case "--to":
 			if i+1 >= len(args) {
 				fmt.Fprintln(os.Stderr, "❌ --to 需要参数 (key=target,key=target,...)")
@@ -128,15 +145,53 @@ func cmdRun(args []string) {
 		cleanups = append(cleanups, stop)
 	}
 
-	// Print the topology so devs can paste it back into application.yml
-	// if they want to pin the values.
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, "🔌 端口转发就绪 — 注入到子进程 env:")
-	for _, t := range targets {
-		fmt.Fprintf(os.Stderr, "   %s  127.0.0.1:%d → %s:%d  (via %s)\n",
-			envPrefix(t.name)+"_*", t.localPort, t.host, t.remotePort, t.jumpName)
+	// Assemble the topology for logging / scripted consumption.
+	type entry struct {
+		Name       string `json:"name"`
+		EnvPrefix  string `json:"env_prefix"`
+		Host       string `json:"host"`
+		RemotePort int    `json:"remote_port"`
+		LocalPort  int    `json:"local_port"`
+		Jump       string `json:"jump"`
+		JumpID     string `json:"jump_id"`
 	}
-	fmt.Fprintln(os.Stderr)
+	var entries []entry
+	for _, t := range targets {
+		entries = append(entries, entry{
+			Name: t.name, EnvPrefix: envPrefix(t.name),
+			Host: t.host, RemotePort: t.remotePort,
+			LocalPort: t.localPort, Jump: t.jumpName, JumpID: t.jumpID,
+		})
+	}
+	payload, _ := json.Marshal(map[string]interface{}{
+		"targets": entries,
+		"pid":     os.Getpid(),
+	})
+
+	// --status-file: preferred for scripted use since child's stdout/stderr
+	// are about to take over. Writing it atomically (temp+rename) means
+	// observers polling the path see either nothing or a complete JSON,
+	// never half.
+	if statusFile != "" {
+		tmp := statusFile + ".tmp"
+		if err := os.WriteFile(tmp, append(payload, '\n'), 0600); err == nil {
+			_ = os.Rename(tmp, statusFile)
+		}
+	}
+
+	if jsonMode {
+		// Emit JSON to stderr — child's stderr will soon follow. Caveat
+		// documented in --help.
+		fmt.Fprintln(os.Stderr, string(payload))
+	} else {
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "🔌 端口转发就绪 — 注入到子进程 env:")
+		for _, t := range targets {
+			fmt.Fprintf(os.Stderr, "   %s  127.0.0.1:%d → %s:%d  (via %s)\n",
+				envPrefix(t.name)+"_*", t.localPort, t.host, t.remotePort, t.jumpName)
+		}
+		fmt.Fprintln(os.Stderr)
+	}
 
 	env := os.Environ()
 	for _, t := range targets {
@@ -266,7 +321,20 @@ func printRunHelp() {
   kafka=10.0.0.3:9092         host:port
   nacos=nacos.internal:8848   任意内网 host
 
---via <jump>      全部走指定跳板; 不写就按每个 target 的 VPC 自动挑
+--via <jump>            全部走指定跳板; 不写就按每个 target 的 VPC 自动挑
+-j, --json              exec 前 stderr 打印 JSON 清单 (会和 child 的 stderr 混)
+--status-file <path>    exec 前把同样的 JSON 原子写到指定文件 (推荐, 不影响 child)
+
+JSON 结构 (不论走 -j 还是 --status-file):
+  {"targets":[
+    {"name":"mysql","env_prefix":"MYSQL","host":"rm-xxx.mysql.rds.aliyuncs.com",
+     "remote_port":3306,"local_port":54321,"jump":"prod-jump","jump_id":"i-abc"},
+    ...
+  ],"pid":12345}
+
+AI agent 推荐用 --status-file:
+  tssh run --status-file /tmp/tssh.json --to mysql=rm-xxx -- ./gradlew bootRun &
+  # poll /tmp/tssh.json 至存在, 读 JSON, 拿 local_port 去连
 
 示例:
   tssh run --to mysql=rm-xxx,redis=r-xxx,kafka=10.0.0.3:9092 -- ./gradlew bootRun

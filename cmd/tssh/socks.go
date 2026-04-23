@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -23,9 +24,14 @@ func cmdSocks(args []string) {
 	localPort := 1080
 	remotePort := 19080
 	var target string
+	var jsonMode, quietMode bool
 
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
+		case "-j", "--json":
+			jsonMode = true
+		case "-q", "--quiet":
+			quietMode = true
 		case "-p", "--port":
 			if i+1 >= len(args) {
 				fmt.Fprintln(os.Stderr, "❌ -p 需要一个端口号")
@@ -99,20 +105,36 @@ func cmdSocks(args []string) {
 	}
 	defer stop()
 
-	fmt.Println()
-	fmt.Printf("🧦 SOCKS5 proxy ready: 127.0.0.1:%d  (via %s)\n", localPort, inst.Name)
-	fmt.Println()
-	fmt.Println("示例用法:")
-	fmt.Printf("  curl --socks5-hostname 127.0.0.1:%d https://internal.example.com\n", localPort)
-	fmt.Printf("  export ALL_PROXY=socks5h://127.0.0.1:%d\n", localPort)
-	fmt.Printf("  export JAVA_TOOL_OPTIONS='-DsocksProxyHost=127.0.0.1 -DsocksProxyPort=%d'\n", localPort)
-	fmt.Println()
-	fmt.Println("按 Ctrl+C 退出 (会自动关闭远端 microsocks)")
+	if jsonMode {
+		payload := map[string]interface{}{
+			"local_port": localPort,
+			"proxy":      fmt.Sprintf("socks5h://127.0.0.1:%d", localPort),
+			"via":        inst.Name,
+			"jump_id":    inst.ID,
+			"remote_pid": pid,
+			"pid":        os.Getpid(),
+		}
+		b, _ := json.Marshal(payload)
+		fmt.Println(string(b))
+		os.Stdout.Sync()
+	} else if !quietMode {
+		fmt.Println()
+		fmt.Printf("🧦 SOCKS5 proxy ready: 127.0.0.1:%d  (via %s)\n", localPort, inst.Name)
+		fmt.Println()
+		fmt.Println("示例用法:")
+		fmt.Printf("  curl --socks5-hostname 127.0.0.1:%d https://internal.example.com\n", localPort)
+		fmt.Printf("  export ALL_PROXY=socks5h://127.0.0.1:%d\n", localPort)
+		fmt.Printf("  export JAVA_TOOL_OPTIONS='-DsocksProxyHost=127.0.0.1 -DsocksProxyPort=%d'\n", localPort)
+		fmt.Println()
+		fmt.Println("按 Ctrl+C 退出 (会自动关闭远端 microsocks)")
+	}
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 	<-sigCh
-	fmt.Fprintln(os.Stderr, "\n🛑 清理中...")
+	if !jsonMode && !quietMode {
+		fmt.Fprintln(os.Stderr, "\n🛑 清理中...")
+	}
 }
 
 // startRemoteSocks makes sure microsocks is installed + running on 127.0.0.1.
@@ -181,6 +203,11 @@ func printSocksHelp() {
 选项:
   -p, --port <port>     本地监听端口 (默认 1080)
   --remote <port>       远端 microsocks 端口 (默认 19080, 绑 127.0.0.1)
+  -j, --json            启动成功后 stdout 打印一行 JSON, AI/脚本可 parse
+  -q, --quiet           静默模式
+
+JSON 模式输出 (stdout 一行):
+  {"local_port":1080,"proxy":"socks5h://127.0.0.1:1080","via":"prod-jump","jump_id":"i-...","remote_pid":"1234","pid":12345}
 
 说明:
   - 远端 microsocks 只绑 127.0.0.1, 流量经 Cloud Assistant 传入, 无 VPC 暴露

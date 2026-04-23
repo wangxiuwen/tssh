@@ -1,4 +1,4 @@
-package main
+package db
 
 // Built-in Redis RESP protocol client — zero external dependencies
 // Implements RESP (REdis Serialization Protocol) v2 for interactive Redis sessions

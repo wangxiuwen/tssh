@@ -98,6 +98,18 @@ cmd/
 - README 分节: 有洁癖只装对应 binary, 懒就装 tssh 全家桶
 - 更新安装指南, brew tap 或 GitHub release 分别提供
 
+## 完成状态 (v1.16.0-refactor.16)
+
+5 个独立二进制全部 ready, 所有主要子命令都被挪到对应 internal/cmd/<group>:
+
+| Binary   | 体积 (stripped) | 子命令 |
+|---|---|---|
+| tssh     | 9.9 MB | 全功能 (大杂烩, 向后兼容) |
+| tssh-k8s | 8.1 MB | ks / kf / logs / events |
+| tssh-net | 8.2 MB | socks / fwd / run / shell / vpn / browser |
+| tssh-arms| 8.1 MB | arms (alerts/dash/ds/open/query/trace) |
+| tssh-db  | 8.1 MB | redis / rds (ls/info/connect, 内置 REPL) |
+
 ## 不拆的原因
 
 - `internal/aliyun` 不拆 — SDK 层就一个, 没意义

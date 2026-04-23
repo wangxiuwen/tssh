@@ -1,4 +1,4 @@
-package main
+package db
 
 // Built-in MySQL wire protocol client — zero external dependencies
 // Implements MySQL Client/Server protocol for basic interactive SQL sessions

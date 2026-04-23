@@ -3,7 +3,7 @@ GO_CMD ?= $(shell command -v go1.23.6 2>/dev/null || echo "go")
 # Every cmd/<BIN>/ dir is built as its own binary. Main `tssh` is the
 # big-tent binary; tssh-k8s (and future tssh-net / tssh-db / tssh-arms)
 # are slim slices linked from the same internal/ packages.
-BINARIES = tssh tssh-k8s tssh-net tssh-arms
+BINARIES = tssh tssh-k8s tssh-net tssh-arms tssh-db
 
 # Platforms matching the 4 machines + Windows for parity.
 PLATFORMS = \

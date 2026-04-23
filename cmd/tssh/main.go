@@ -11,7 +11,7 @@ import (
 	"github.com/wangxiuwen/tssh/internal/shared"
 )
 
-const version = "1.16.0-refactor.11"
+const version = "1.16.0-refactor.12"
 
 // Global flags parsed from os.Args before subcommand dispatch
 var globalProfile string

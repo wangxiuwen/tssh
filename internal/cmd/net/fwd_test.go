@@ -1,4 +1,4 @@
-package main
+package net
 
 import (
 	"testing"
@@ -10,7 +10,7 @@ import (
 // host:port branch here.
 
 func TestResolveFwdTarget_HostPort(t *testing.T) {
-	host, port, vpc, err := resolveFwdTarget(nil, "rds-prod.internal:3306")
+	host, port, vpc, err := ResolveFwdTarget(nil, "rds-prod.internal:3306")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -23,7 +23,7 @@ func TestResolveFwdTarget_HostPort(t *testing.T) {
 }
 
 func TestResolveFwdTarget_IPPort(t *testing.T) {
-	host, port, _, err := resolveFwdTarget(nil, "10.0.0.5:8080")
+	host, port, _, err := ResolveFwdTarget(nil, "10.0.0.5:8080")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestResolveFwdTarget_InvalidPort(t *testing.T) {
 		":",          // bare colon
 	}
 	for _, c := range cases {
-		if _, _, _, err := resolveFwdTarget(nil, c); err == nil {
+		if _, _, _, err := ResolveFwdTarget(nil, c); err == nil {
 			t.Errorf("expected error for %q", c)
 		}
 	}
@@ -52,7 +52,7 @@ func TestResolveFwdTarget_InvalidPort(t *testing.T) {
 // IPv6 literal gets handled by LastIndex — a bare "::1:3306" parses as host
 // "::1" port 3306, which is actually correct and useful. Verify.
 func TestResolveFwdTarget_IPv6Loopback(t *testing.T) {
-	host, port, _, err := resolveFwdTarget(nil, "::1:3306")
+	host, port, _, err := ResolveFwdTarget(nil, "::1:3306")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

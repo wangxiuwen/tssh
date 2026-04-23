@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const version = "1.13.2"
+const version = "1.14.0"
 
 // Global flags parsed from os.Args before subcommand dispatch
 var globalProfile string
@@ -93,6 +93,8 @@ func main() {
 		cmdShell(filteredArgs[1:])
 	case "vpn":
 		cmdVPN(filteredArgs[1:])
+	case "browser":
+		cmdBrowser(filteredArgs[1:])
 	case "doctor":
 		cmdDoctor()
 	case "update":
@@ -277,6 +279,7 @@ func printUsage() {
   tssh run --to k=v,k=v -- <cmd> 并行起多端口 + 把 K_HOST/K_PORT/K_ADDR 注入子进程
   tssh shell <name>                子 shell + SOCKS5 env (curl/JVM/go 全自动走远端 VPC)
   sudo tssh vpn <name> --cidr ...  L3 TUN 透明代理 (Kafka/MQ 也吃, 需 tun2socks)
+  tssh browser <name> [url...]     独立 Chrome 窗口 + SOCKS5, 直接访问内网 Web
   tssh doctor                      自检
   tssh update                      自更新
   tssh ssh-config                  生成 SSH config

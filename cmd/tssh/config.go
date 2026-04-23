@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
 )
@@ -89,22 +90,12 @@ func saveHistory(command string, results interface{}) {
 		json.Unmarshal(data, &entries)
 	}
 
+	// Use reflection via reflect.ValueOf to get length — avoids JSON re-encoding
+	// which costs O(payload) for a single int. Falls back to 0 if not slice-like.
 	count := 0
-	if r, ok := results.([]struct{ Name string }); ok {
-		count = len(r)
-	}
-	// Use reflection-free approach
-	switch v := results.(type) {
-	case []interface{}:
-		count = len(v)
-	default:
-		// Try to get length via JSON re-encoding
-		if data, err := json.Marshal(results); err == nil {
-			var arr []json.RawMessage
-			if json.Unmarshal(data, &arr) == nil {
-				count = len(arr)
-			}
-		}
+	v := reflect.ValueOf(results)
+	if v.IsValid() && (v.Kind() == reflect.Slice || v.Kind() == reflect.Array) {
+		count = v.Len()
 	}
 
 	entries = append(entries, historyEntry{

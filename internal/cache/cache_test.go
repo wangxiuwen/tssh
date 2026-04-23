@@ -198,7 +198,7 @@ func TestFilterInstances_ShortRegex(t *testing.T) {
 
 func TestFilterInstances_NoInstances(t *testing.T) {
 	result := FilterInstances([]model.Instance{}, "prod")
-	if result != nil && len(result) != 0 {
+	if len(result) != 0 {
 		t.Errorf("expected empty, got %v", result)
 	}
 }
@@ -441,7 +441,7 @@ func TestCacheFindByTag_LoadError(t *testing.T) {
 func TestCacheSave_NoTempLeftBehind(t *testing.T) {
 	dir := t.TempDir()
 	c := &Cache{dir: dir, file: filepath.Join(dir, "instances.json")}
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		if err := c.Save([]model.Instance{{ID: "i-001", Name: "x"}}); err != nil {
 			t.Fatalf("save: %v", err)
 		}

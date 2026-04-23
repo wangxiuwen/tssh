@@ -85,7 +85,16 @@ func cmdWeb(args []string) {
 			Target  string `json:"target"`
 			Command string `json:"command"`
 		}
-		json.NewDecoder(r.Body).Decode(&req)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "invalid JSON: " + err.Error()})
+			return
+		}
+		if req.Target == "" || req.Command == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "target and command required"})
+			return
+		}
 
 		config := mustLoadConfig()
 		client, err := NewAliyunClient(config)

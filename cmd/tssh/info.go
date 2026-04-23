@@ -238,10 +238,15 @@ func cmdUpdate() {
 	}
 
 	_, err = io.Copy(f, dlResp.Body)
-	f.Close()
+	closeErr := f.Close()
 	if err != nil {
 		os.Remove(tmpPath)
 		fmt.Fprintf(os.Stderr, "❌ 下载中断: %v\n", err)
+		os.Exit(1)
+	}
+	if closeErr != nil {
+		os.Remove(tmpPath)
+		fmt.Fprintf(os.Stderr, "❌ 写入失败: %v\n", closeErr)
 		os.Exit(1)
 	}
 

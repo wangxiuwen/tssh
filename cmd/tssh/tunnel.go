@@ -175,7 +175,8 @@ func loadTunnels() []tunnelEntry {
 func saveTunnels(entries []tunnelEntry) {
 	os.MkdirAll(filepath.Dir(tunnelsFile()), 0755)
 	data, _ := json.Marshal(entries)
-	os.WriteFile(tunnelsFile(), data, 0644)
+	// 0600 to match cache/history; tunnels reveal instance IDs + port maps.
+	os.WriteFile(tunnelsFile(), data, 0600)
 }
 
 func cleanDeadTunnels(entries []tunnelEntry) []tunnelEntry {

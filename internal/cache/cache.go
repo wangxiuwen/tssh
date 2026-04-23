@@ -52,7 +52,9 @@ func (c *Cache) Save(instances []model.Instance) error {
 		return err
 	}
 	data, _ := json.MarshalIndent(instances, "", "  ")
-	return os.WriteFile(c.file, data, 0644)
+	// 0600: instance list contains internal IPs + tags + EIPs — inventory
+	// data other users on a shared host shouldn't see.
+	return os.WriteFile(c.file, data, 0600)
 }
 
 func (c *Cache) Load() ([]model.Instance, error) {

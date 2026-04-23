@@ -121,7 +121,9 @@ func saveHistory(command string, results interface{}) {
 
 	cache.Ensure()
 	data, _ := json.Marshal(entries)
-	os.WriteFile(histFile, data, 0644)
+	// 0600: history records every command run on every ECS — often contains
+	// prod paths, internal IPs, sometimes tokens in command args.
+	os.WriteFile(histFile, data, 0600)
 }
 
 // --- Symlink tools ---

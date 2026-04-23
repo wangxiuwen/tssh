@@ -434,3 +434,20 @@ func TestCacheFindByTag_LoadError(t *testing.T) {
 		t.Error("expected error for missing cache file")
 	}
 }
+
+// Regression: cache contains internal IPs + tags + EIPs, other users on the
+// host shouldn't see it. Verify mode 0600.
+func TestCacheSave_Mode0600(t *testing.T) {
+	dir := t.TempDir()
+	c := &Cache{dir: dir, file: filepath.Join(dir, "instances.json")}
+	if err := c.Save([]model.Instance{{ID: "i-001", Name: "x"}}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	info, err := os.Stat(c.file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0600 {
+		t.Errorf("expected 0600, got %o", info.Mode().Perm())
+	}
+}

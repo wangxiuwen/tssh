@@ -59,7 +59,10 @@ func chunkedUpload(client *AliyunClient, instanceID, localPath, remoteDir, remot
 	fmt.Fprintln(os.Stderr)
 
 	target := filepath.Join(remoteDir, remoteFileName)
-	assemble := fmt.Sprintf("cat '%s'/part-* > '%s' && stat -c%%s '%s'", tmpDir, target, target)
+	// tmpDir is self-generated (safe), but target derives from user-supplied
+	// remoteDir / remoteFileName — quote to prevent shell injection.
+	qTarget := shellQuote(target)
+	assemble := fmt.Sprintf("cat '%s'/part-* > '%s' && stat -c%%s '%s'", tmpDir, qTarget, qTarget)
 	res, err := client.RunCommand(instanceID, assemble, 60)
 	if err != nil {
 		return fmt.Errorf("assemble remote: %w", err)
@@ -76,7 +79,8 @@ func chunkedUpload(client *AliyunClient, instanceID, localPath, remoteDir, remot
 // + base64. Avoids the RunCommand stdout cap (~24KB) and the double-base64
 // newline bug from issue #59.
 func chunkedDownload(client *AliyunClient, instanceID, remotePath, localPath string) error {
-	sizeRes, err := client.RunCommand(instanceID, fmt.Sprintf("stat -c%%s '%s'", remotePath), 15)
+	qRemote := shellQuote(remotePath)
+	sizeRes, err := client.RunCommand(instanceID, fmt.Sprintf("stat -c%%s '%s'", qRemote), 15)
 	if err != nil {
 		return fmt.Errorf("stat remote: %w", err)
 	}
@@ -101,7 +105,7 @@ func chunkedDownload(client *AliyunClient, instanceID, remotePath, localPath str
 		// `dd skip=i bs=chunkSize count=1` reads the i-th block; pipe through
 		// `base64 | tr -d '\n'` so the inner output has no newlines (issue #59
 		// root cause was StdEncoding rejecting wrapped base64).
-		cmd := fmt.Sprintf("dd if='%s' bs=%d count=1 skip=%d status=none 2>/dev/null | base64 | tr -d '\\n'", remotePath, chunkSize, i)
+		cmd := fmt.Sprintf("dd if='%s' bs=%d count=1 skip=%d status=none 2>/dev/null | base64 | tr -d '\\n'", qRemote, chunkSize, i)
 		res, err := client.RunCommand(instanceID, cmd, 60)
 		if err != nil {
 			return fmt.Errorf("download chunk %d/%d: %w", i+1, nChunks, err)

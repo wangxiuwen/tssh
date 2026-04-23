@@ -9,6 +9,7 @@ import (
 	"strings"
 	"syscall"
 
+	sessionPkg "github.com/wangxiuwen/tssh/internal/session"
 	"github.com/wangxiuwen/tssh/internal/shared"
 )
 
@@ -252,58 +253,11 @@ func pickJumpHost(cache *Cache, vpcID, override string) (*Instance, error) {
 	return fallback, nil
 }
 
-// setupSocatRelay starts `socat TCP-LISTEN:... TCP:remoteHost:port` on the jump
-// host and returns the listen port, its PID, and a cleanup function.
-// Installs socat via the distro's package manager if missing.
+// setupSocatRelay — thin wrapper over internal/session.SetupSocatRelay.
+// Kept so existing cmd/tssh call sites (cmdFwd / cmdRun / runtime.go /
+// redis.go / rds.go) don't need to all change imports in one commit.
 func setupSocatRelay(client *AliyunClient, jumpID, remoteHost string, remotePort int) (int, string, func(), error) {
-	socatPort := findFreePortInRange(19000, 19999)
-	quoted := shellQuote(remoteHost)
-	startCmd := fmt.Sprintf("nohup socat TCP-LISTEN:%d,fork,reuseaddr TCP:'%s':%d &>/dev/null & echo $!",
-		socatPort, quoted, remotePort)
-
-	pid, err := trySocatStart(client, jumpID, startCmd)
-	if err == nil {
-		return socatPort, pid, mkSocatCleanup(client, jumpID, pid), nil
-	}
-
-	// Retry after installing socat. Installer is safe to run repeatedly.
-	fmt.Fprintln(os.Stderr, "⚙️  安装 socat ...")
-	_, _ = client.RunCommand(jumpID, `which socat >/dev/null 2>&1 || {
-  if command -v apt-get >/dev/null; then apt-get install -y socat;
-  elif command -v dnf >/dev/null; then dnf install -y socat;
-  elif command -v yum >/dev/null; then yum install -y socat;
-  elif command -v apk >/dev/null; then apk add --no-cache socat;
-  else exit 127; fi
-}`, 120)
-	pid, err = trySocatStart(client, jumpID, startCmd)
-	if err != nil {
-		return 0, "", nil, fmt.Errorf("socat 仍无法启动: %w", err)
-	}
-	return socatPort, pid, mkSocatCleanup(client, jumpID, pid), nil
-}
-
-func trySocatStart(client *AliyunClient, jumpID, startCmd string) (string, error) {
-	res, err := client.RunCommand(jumpID, startCmd, 10)
-	if err != nil {
-		return "", err
-	}
-	pid := strings.TrimSpace(decodeOutput(res.Output))
-	if pid == "" {
-		return "", fmt.Errorf("empty PID")
-	}
-	if _, perr := strconv.Atoi(pid); perr != nil {
-		return "", fmt.Errorf("non-numeric PID %q (socat 可能未安装)", pid)
-	}
-	return pid, nil
-}
-
-func mkSocatCleanup(client *AliyunClient, jumpID, pid string) func() {
-	return func() {
-		if pid == "" {
-			return
-		}
-		_, _ = client.RunCommand(jumpID, fmt.Sprintf("kill %s 2>/dev/null", shellQuote(pid)), 5)
-	}
+	return sessionPkg.SetupSocatRelay(client, jumpID, remoteHost, remotePort)
 }
 
 // findFreePortInRange — delegates to shared.FindFreePortInRange.

@@ -61,7 +61,7 @@ func main() {
 	}
 }
 
-const version = "1.16.0-refactor.9"
+const version = "1.16.0-refactor.10"
 
 func usage() {
 	fmt.Printf(`tssh-k8s %s — k8s-only slice of tssh

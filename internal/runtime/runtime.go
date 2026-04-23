@@ -49,10 +49,13 @@ type Runtime struct {
 // but could swap in a no-op for a test binary).
 func New(profile string) *Runtime {
 	return &Runtime{
-		profile:             profile,
-		ExecInteractiveFn:   session.ConnectSessionWithCommand,
-		StartPortForwardFn:  session.StartPortForwardBgWithCancel,
-		StartSocatRelayFn:   nil, // still tied to cmd/tssh.setupSocatRelay until fwd.go migrates
+		profile:            profile,
+		ExecInteractiveFn:  session.ConnectSessionWithCommand,
+		StartPortForwardFn: session.StartPortForwardBgWithCancel,
+		StartSocatRelayFn: func(c *aliyun.Client, jumpID, host string, port int) (int, func(), error) {
+			socat, _, cleanup, err := session.SetupSocatRelay(c, jumpID, host, port)
+			return socat, cleanup, err
+		},
 	}
 }
 

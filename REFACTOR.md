@@ -84,7 +84,9 @@ cmd/
 - [x] **session.go + portforward.go 挪到 internal/session** (v1.16.0-refactor.9)
 - [x] cmd/tssh/session_bridge.go 留老名字 wrapper, 向后兼容
 - [x] tssh-k8s 现在自带 session 能力, kf 也能跑了
-      (socat relay 的 setupSocatRelay 还在 cmd/tssh/fwd.go, Phase 4 再抽)
+- [x] **setupSocatRelay 挪到 internal/session** (v1.16.0-refactor.10)
+- [x] cmd/tssh/fwd.go 留 1 行 wrapper, internal/runtime 默认装 session.SetupSocatRelay
+- [x] tssh-k8s kf 全功能 — 彻底脱离 cmd/tssh
 - [x] Makefile 支持 `BINARIES = tssh tssh-k8s`, `make all` 自动 2×6 = 12
       个 cross-compiled 产物 (v1.16.0-refactor.8)
 - [x] release.yml 零改动 (make all 产物已全部上传)

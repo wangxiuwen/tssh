@@ -64,7 +64,10 @@ cmd/
 - [x] `internal/cmd/k8s/logs.go` + test (v1.16.0-refactor.5)
 - [x] `internal/cmd/k8s/ks.go` + test (v1.16.0-refactor.5)
 - [x] shared.DefaultStr 抽离 (ks + kf 共用)
-- [ ] `internal/cmd/k8s/kf.go` (依赖 portforward/socat 基础设施, 先抽底层)
+- [x] `internal/cmd/k8s/kf.go` + test (v1.16.0-refactor.6)
+- [x] core.Runtime.StartPortForward + StartSocatRelay (v1.16.0-refactor.6)
+- [x] **`cmd/tssh-k8s/main.go` 独立 binary 编出来** (4.4MB, 主 tssh 14.4MB,
+      69% 缩减). 但 runtime 还是 stub — Phase 3 才能真跑.
 - [ ] `internal/cmd/net/` (socks/fwd/run/shell/vpn/browser)
 - [ ] `internal/cmd/db/` (redis/rds)
 - [ ] `internal/cmd/arms/`

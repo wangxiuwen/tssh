@@ -67,3 +67,16 @@ func (r *tsshRuntime) ExecOneShot(instanceID, cmd string, timeoutSec int) (*core
 func (r *tsshRuntime) ExecInteractive(instanceID, cmd string) error {
 	return ConnectSessionWithCommand(mustLoadConfig(), instanceID, cmd)
 }
+
+func (r *tsshRuntime) StartPortForward(instanceID string, localPort, remotePort int) (func(), error) {
+	return startPortForwardBgWithCancel(mustLoadConfig(), instanceID, localPort, remotePort)
+}
+
+func (r *tsshRuntime) StartSocatRelay(jumpID, remoteHost string, remotePort int) (int, func(), error) {
+	client, err := NewAliyunClient(mustLoadConfig())
+	if err != nil {
+		return 0, nil, err
+	}
+	socatPort, _, cleanup, err := setupSocatRelay(client, jumpID, remoteHost, remotePort)
+	return socatPort, cleanup, err
+}

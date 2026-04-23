@@ -37,6 +37,17 @@ type Runtime interface {
 	// against the remote shell / command. Used for `kubectl logs -f` and
 	// similar long-lived flows. Blocks until the session closes.
 	ExecInteractive(instanceID, cmd string) error
+
+	// StartPortForward binds localPort on 127.0.0.1 and tunnels connections
+	// to remotePort on the instance via Cloud Assistant. Returns a stop fn
+	// that closes the listener; callers defer it.
+	StartPortForward(instanceID string, localPort, remotePort int) (stop func(), err error)
+
+	// StartSocatRelay starts `socat` on the jump forwarding to remoteHost:port,
+	// returning the port socat is listening on (to be used as the "remote"
+	// side of a StartPortForward), plus a cleanup that kills socat. Installs
+	// socat if absent.
+	StartSocatRelay(jumpID, remoteHost string, remotePort int) (socatPort int, cleanup func(), err error)
 }
 
 // ExecResult mirrors the one-shot output from Cloud Assistant. Kept here

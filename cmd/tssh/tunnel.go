@@ -64,9 +64,22 @@ func tunnelStart(args []string) {
 		parts = []string{parts[0], parts[1], parts[0]}
 	}
 
-	localPort, _ := strconv.Atoi(parts[0])
+	localPort, lerr := strconv.Atoi(parts[0])
 	remoteHost := parts[1]
-	remotePort, _ := strconv.Atoi(parts[2])
+	remotePort, rerr := strconv.Atoi(parts[2])
+	if lerr != nil || rerr != nil || localPort <= 0 || localPort > 65535 || remotePort <= 0 || remotePort > 65535 {
+		fmt.Fprintf(os.Stderr, "❌ 端口号无效: %s\n", spec)
+		os.Exit(2)
+	}
+
+	// tunnel 走后台 daemon (_portforward), 目前只支持直连 ECS localhost.
+	// 远端主机中转 (socat) 需要清理远端进程, daemon 模式下不好处理; 让用户
+	// 用前台 `tssh -L <local>:<host>:<remote> <name>` 模式 (会在退出时清理 socat).
+	if remoteHost != "" && remoteHost != "localhost" && remoteHost != "127.0.0.1" {
+		fmt.Fprintf(os.Stderr, "❌ tunnel 后台模式暂不支持远端主机中转 (-L %d:%s:%d)\n", localPort, remoteHost, remotePort)
+		fmt.Fprintln(os.Stderr, "   请用前台: tssh -L "+spec+" "+target)
+		os.Exit(2)
+	}
 
 	cache := getCache()
 	ensureCache(cache)
@@ -74,9 +87,17 @@ func tunnelStart(args []string) {
 
 	fmt.Printf("🔗 启动隧道: 127.0.0.1:%d → %s:%d (via %s)\n", localPort, remoteHost, remotePort, inst.Name)
 
-	// Self-exec: run `tssh _portforward <instanceID> <localPort> <remotePort>` in background
+	// Self-exec: `tssh [--profile X] _portforward <instanceID> <localPort> <remotePort>`
+	// Propagating --profile is essential: subprocess loads its own config and
+	// without the flag would pick the default profile instead of the user's
+	// current one.
 	exe, _ := os.Executable()
-	cmd := execCommand(exe, "_portforward", inst.ID, strconv.Itoa(localPort), strconv.Itoa(remotePort))
+	var cmdArgs []string
+	if globalProfile != "" {
+		cmdArgs = append(cmdArgs, "--profile", globalProfile)
+	}
+	cmdArgs = append(cmdArgs, "_portforward", inst.ID, strconv.Itoa(localPort), strconv.Itoa(remotePort))
+	cmd := execCommand(exe, cmdArgs...)
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 	// Credentials via env (secure)

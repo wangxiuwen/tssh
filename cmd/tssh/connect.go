@@ -92,7 +92,9 @@ func cmdPortForward(target, spec string) {
 		fatal(err, "create client")
 
 		socatPort := 19999
-		socatCmd := fmt.Sprintf("nohup socat TCP-LISTEN:%d,fork,reuseaddr TCP:%s:%d &>/dev/null & echo $!", socatPort, remoteHost, remotePort)
+		// remoteHost comes from user-supplied -L spec; quote to prevent shell
+		// injection via e.g. -L 3306:$(evil):3306.
+		socatCmd := fmt.Sprintf("nohup socat TCP-LISTEN:%d,fork,reuseaddr TCP:'%s':%d &>/dev/null & echo $!", socatPort, shellQuote(remoteHost), remotePort)
 		result, err := client.RunCommand(inst.ID, socatCmd, 10)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "⚙️  安装 socat...")

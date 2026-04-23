@@ -27,6 +27,24 @@ type Runtime interface {
 	// LoadAllInstances returns the current instance cache (syncing if stale).
 	// Empty slice is valid (no instances); error is exceptional.
 	LoadAllInstances() []model.Instance
+
+	// ExecOneShot runs cmd via Cloud Assistant and blocks until it returns.
+	// Output is already base64-decoded. timeoutSec applies server-side + ~10s
+	// slack for local polling.
+	ExecOneShot(instanceID, cmd string, timeoutSec int) (*ExecResult, error)
+
+	// ExecInteractive opens a WebSocket session and streams stdin/stdout
+	// against the remote shell / command. Used for `kubectl logs -f` and
+	// similar long-lived flows. Blocks until the session closes.
+	ExecInteractive(instanceID, cmd string) error
+}
+
+// ExecResult mirrors the one-shot output from Cloud Assistant. Kept here
+// instead of importing model.CommandResult so subcommand groups don't have to
+// know about the SDK types.
+type ExecResult struct {
+	Output   string
+	ExitCode int
 }
 
 // Registered subcommand. Each group returns one or more of these from a

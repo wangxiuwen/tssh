@@ -55,17 +55,18 @@ cmd/
 原则: cmd/tssh 保留 wrapper delegate 到 shared, 向后兼容.
 
 ### Phase 2 — 子命令挪到 internal/cmd/<group>
-按组逐个迁移. 每组包含:
-- 其子命令入口 (`CmdXXX`)
-- 组内的 helper (如 logs 的 nsFlagFor)
-- 各自的 `_test.go`
 
-迁移顺序 (从依赖最少的组开始):
-1. `k8s/` (只依赖 shared + aliyun + session): ks/kf/logs/events
-2. `net/`: socks/fwd/run/shell/vpn/browser
-3. `db/`: redis/rds
-4. `arms/`: arms
-5. `core/`: 所有剩下的
+每组包含: 子命令入口 `CmdXXX(rt core.Runtime, args)` / 组内 helper / 各自 `_test.go`.
+组只依赖 `internal/shared` 和 `internal/core`, 不依赖 cmd/tssh.
+
+迁移进度:
+- [x] `internal/cmd/k8s/events.go` + test (v1.16.0-refactor.4, PoC)
+  - cmd/tssh/events.go 变成 6 行 delegate 到 k8s.Events(appRuntime, args)
+- [ ] `internal/cmd/k8s/ks.go` + kf.go + logs.go
+- [ ] `internal/cmd/net/` (socks/fwd/run/shell/vpn/browser)
+- [ ] `internal/cmd/db/` (redis/rds)
+- [ ] `internal/cmd/arms/`
+- [ ] `internal/cmd/core/` (剩下的 ECS 基础能力)
 
 ### Phase 3 — 拆 main
 每组写独立 `cmd/tssh-<group>/main.go`, 只注册该组的 dispatch.

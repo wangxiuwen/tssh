@@ -7,12 +7,28 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"golang.org/x/term"
 )
+
+// wsSafeWrite serializes WriteMessage calls on a shared *websocket.Conn.
+// gorilla/websocket explicitly forbids concurrent writers ("Connections
+// support one concurrent reader and one concurrent writer") — the interactive
+// session has 4+ writer goroutines (heartbeat, resize, sync-response, stdin)
+// so this wrapper is essential. Without it we risk frame corruption or
+// "concurrent write to websocket connection" panics.
+func wsSafeWriter(conn *websocket.Conn) func([]byte) {
+	var mu sync.Mutex
+	return func(data []byte) {
+		mu.Lock()
+		defer mu.Unlock()
+		conn.WriteMessage(websocket.BinaryMessage, data)
+	}
+}
 
 // AxtMessage types (from official cloud-assistant-starter AxtMessage.ts)
 const (
@@ -153,6 +169,7 @@ func ConnectSession(config *Config, instanceID string) error {
 		return fmt.Errorf("websocket failed: %w", err)
 	}
 	defer conn.Close()
+	send := wsSafeWriter(conn)
 
 	// Raw terminal mode
 	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
@@ -191,7 +208,7 @@ func ConnectSession(config *Config, instanceID string) error {
 		binary.LittleEndian.PutUint16(p[0:], uint16(rows))
 		binary.LittleEndian.PutUint16(p[2:], uint16(cols))
 		inputSeq++
-		conn.WriteMessage(websocket.BinaryMessage, mkMsg(MsgResize, p))
+		send(mkMsg(MsgResize, p))
 	}
 
 	// Resize handler
@@ -208,7 +225,7 @@ func ConnectSession(config *Config, instanceID string) error {
 		ticker := time.NewTicker(50 * time.Second)
 		defer ticker.Stop()
 		for range ticker.C {
-			conn.WriteMessage(websocket.BinaryMessage, mkMsg(MsgInput, nil))
+			send(mkMsg(MsgInput, nil))
 		}
 	}()
 
@@ -256,7 +273,7 @@ func ConnectSession(config *Config, instanceID string) error {
 
 			case MsgSync:
 				// Respond with sync
-				conn.WriteMessage(websocket.BinaryMessage, mkMsg(MsgSync, nil))
+				send(mkMsg(MsgSync, nil))
 			}
 		}
 	}()
@@ -270,7 +287,7 @@ func ConnectSession(config *Config, instanceID string) error {
 				return
 			}
 			inputSeq++
-			conn.WriteMessage(websocket.BinaryMessage, mkMsg(MsgInput, buf[:n]))
+			send(mkMsg(MsgInput, buf[:n]))
 		}
 	}()
 
@@ -295,6 +312,7 @@ func ConnectSessionWithCommand(config *Config, instanceID string, command string
 		return fmt.Errorf("websocket failed: %w", err)
 	}
 	defer conn.Close()
+	send := wsSafeWriter(conn)
 
 	// Raw terminal mode
 	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
@@ -331,7 +349,7 @@ func ConnectSessionWithCommand(config *Config, instanceID string, command string
 		binary.LittleEndian.PutUint16(p[0:], uint16(rows))
 		binary.LittleEndian.PutUint16(p[2:], uint16(cols))
 		inputSeq++
-		conn.WriteMessage(websocket.BinaryMessage, mkMsg(MsgResize, p))
+		send(mkMsg(MsgResize, p))
 	}
 
 	// Resize handler
@@ -348,7 +366,7 @@ func ConnectSessionWithCommand(config *Config, instanceID string, command string
 		ticker := time.NewTicker(50 * time.Second)
 		defer ticker.Stop()
 		for range ticker.C {
-			conn.WriteMessage(websocket.BinaryMessage, mkMsg(MsgInput, nil))
+			send(mkMsg(MsgInput, nil))
 		}
 	}()
 
@@ -389,7 +407,7 @@ func ConnectSessionWithCommand(config *Config, instanceID string, command string
 					if strings.Contains(payload, "$") || strings.Contains(payload, "#") || strings.Contains(payload, ">") {
 						commandSent = true
 						inputSeq++
-						conn.WriteMessage(websocket.BinaryMessage, mkMsg(MsgInput, []byte(command+"\n")))
+						send(mkMsg(MsgInput, []byte(command+"\n")))
 					}
 				}
 
@@ -402,7 +420,7 @@ func ConnectSessionWithCommand(config *Config, instanceID string, command string
 				}
 
 			case MsgSync:
-				conn.WriteMessage(websocket.BinaryMessage, mkMsg(MsgSync, nil))
+				send(mkMsg(MsgSync, nil))
 			}
 		}
 	}()
@@ -416,7 +434,7 @@ func ConnectSessionWithCommand(config *Config, instanceID string, command string
 				return
 			}
 			inputSeq++
-			conn.WriteMessage(websocket.BinaryMessage, mkMsg(MsgInput, buf[:n]))
+			send(mkMsg(MsgInput, buf[:n]))
 		}
 	}()
 

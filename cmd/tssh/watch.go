@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -27,10 +26,14 @@ func cmdWatch(args []string) {
 			}
 		case "--interval", "-n":
 			if i+1 < len(args) {
-				sec, err := strconv.Atoi(args[i+1])
-				if err == nil {
-					interval = time.Duration(sec) * time.Second
+				// Accept plain seconds or duration strings (2s / 5m / 1h30m).
+				// Reject non-positive to avoid a tight busy-loop on time.After.
+				sec, err := parseTimeoutSec(args[i+1])
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "❌ --interval %s: %v\n", args[i+1], err)
+					os.Exit(2)
 				}
+				interval = time.Duration(sec) * time.Second
 				i += 2
 			}
 		default:

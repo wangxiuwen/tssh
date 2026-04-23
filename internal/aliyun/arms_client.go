@@ -263,7 +263,9 @@ func PrometheusDirectURL(region, token string) string {
 // PrometheusDirectQuery executes a PromQL query directly against ARMS Prometheus
 func PrometheusDirectQuery(baseURL, query string) ([]byte, error) {
 	u := baseURL + "/api/v1/query?query=" + url.QueryEscape(query)
-	resp, err := http.Get(u)
+	// Bounded: DefaultClient has no timeout, bad for interactive queries.
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(u)
 	if err != nil {
 		return nil, fmt.Errorf("prometheus query: %w", err)
 	}

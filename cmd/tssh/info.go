@@ -166,8 +166,9 @@ func execLookPath(name string) (string, error) {
 func cmdUpdate() {
 	fmt.Printf("🔄 检查更新... (当前: v%s)\n", version)
 
-	// Fetch latest release from GitHub API
-	resp, err := http.Get("https://api.github.com/repos/wangxiuwen/tssh/releases/latest")
+	// Bounded timeout on the GitHub API call — DefaultClient hangs forever.
+	apiClient := &http.Client{Timeout: 15 * time.Second}
+	resp, err := apiClient.Get("https://api.github.com/repos/wangxiuwen/tssh/releases/latest")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "❌ 无法连接 GitHub: %v\n", err)
 		os.Exit(1)
@@ -212,8 +213,10 @@ func cmdUpdate() {
 
 	fmt.Printf("⬇️  下载 %s...\n", target)
 
-	// Download
-	dlResp, err := http.Get(downloadURL)
+	// 5 min cap — binary is ~10MB but slow mirrors can stretch; anything longer
+	// than this is probably a hung connection rather than honest throughput.
+	dlClient := &http.Client{Timeout: 5 * time.Minute}
+	dlResp, err := dlClient.Get(downloadURL)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "❌ 下载失败: %v\n", err)
 		os.Exit(1)

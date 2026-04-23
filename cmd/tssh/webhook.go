@@ -54,7 +54,10 @@ func sendWebhook(webhookURL string, summary string, details string) error {
 		payload, _ = json.Marshal(msg)
 	}
 
-	resp, err := http.Post(webhookURL, "application/json", bytes.NewReader(payload))
+	// Bounded timeout: http.DefaultClient blocks forever on slow/hung webhooks,
+	// which would freeze `tssh exec --notify ...` indefinitely.
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Post(webhookURL, "application/json", bytes.NewReader(payload))
 	if err != nil {
 		return fmt.Errorf("webhook failed: %w", err)
 	}

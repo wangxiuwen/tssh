@@ -10,6 +10,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"golang.org/x/term"
+
 	"github.com/wangxiuwen/tssh/internal/aliyun"
 	"github.com/wangxiuwen/tssh/internal/core"
 	"github.com/wangxiuwen/tssh/internal/model"
@@ -246,14 +248,28 @@ func cmdRDSConnect(args []string) {
 		os.Exit(1)
 	}
 
-	// 3. Ask for password
+	// 3. Ask for password — read with echo off so shoulder-surfers and terminal
+	// scrollback don't see it. Fall back to a plain scanner if stdin isn't a TTY
+	// (piped password, CI, etc.).
 	fmt.Fprintf(os.Stderr, "🔗 RDS: %s (%s)\n", found.Name, found.ConnectionString)
 	fmt.Fprintf(os.Stderr, "📡 跳板: %s (VPC: %s)\n", jumpHost.Name, jumpHost.VpcID)
 	fmt.Fprintf(os.Stderr, "用户: %s\n", user)
 	fmt.Fprintf(os.Stderr, "密码: ")
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Scan()
-	password := scanner.Text()
+	var password string
+	fd := int(os.Stdin.Fd())
+	if term.IsTerminal(fd) {
+		pw, err := term.ReadPassword(fd)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "\n❌ 读密码失败: %v\n", err)
+			os.Exit(1)
+		}
+		password = string(pw)
+		fmt.Fprintln(os.Stderr) // newline swallowed by ReadPassword
+	} else {
+		scanner := bufio.NewScanner(os.Stdin)
+		scanner.Scan()
+		password = scanner.Text()
+	}
 
 	// 4. Set up socat relay on ECS → RDS
 	fmt.Fprintf(os.Stderr, "📡 连接中...\n")

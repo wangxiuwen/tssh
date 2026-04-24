@@ -41,10 +41,20 @@ func cmdProfiles() {
 		fmt.Println("没有找到配置的账号")
 		return
 	}
+	// Resolve which profile is actually active: explicit --profile wins,
+	// otherwise ask config.Load to pick (env > default > first config entry).
+	// Previously marked BOTH "default" and "env" when globalProfile=="" which
+	// was confusing — only one is actually used.
+	active := globalProfile
+	if active == "" {
+		if cfg, err := LoadConfigWithProfile(""); err == nil {
+			active = cfg.ProfileName
+		}
+	}
 	fmt.Println("可用账号:")
 	for _, p := range profiles {
 		marker := "  "
-		if p == globalProfile || (globalProfile == "" && (p == "default" || p == "env")) {
+		if p == active {
 			marker = "→ "
 		}
 		fmt.Printf("  %s%s\n", marker, p)

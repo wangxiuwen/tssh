@@ -13,6 +13,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/wangxiuwen/tssh/internal/aliyun"
 	"github.com/wangxiuwen/tssh/internal/cache"
@@ -88,11 +89,18 @@ func (r *Runtime) LoadAllInstances() []model.Instance {
 	return insts
 }
 
-// ensureCache syncs the cache from Aliyun when it doesn't exist. No background
-// refresh here (cmd/tssh does that) — simpler semantics for batch-style slim
-// binaries.
+// ensureCache syncs the cache from Aliyun when it doesn't exist, and warns
+// (non-blocking) when it's stale. No background refresh here (cmd/tssh does
+// that) — simpler semantics for batch-style slim binaries.
 func (r *Runtime) ensureCache(c *cache.Cache) {
 	if c.Exists() {
+		// 7 days matches the unattended-use threshold: slim binaries don't
+		// auto-refresh, so users relying only on tssh-k8s/net/etc. might miss
+		// new/renamed instances for a long time. Warn but don't block.
+		if age := c.Age(); age > 7*24*time.Hour {
+			fmt.Fprintf(os.Stderr, "⚠️  缓存 %s 未更新, 可能缺少新实例 — 跑 `tssh sync` 刷新\n",
+				age.Round(time.Hour))
+		}
 		return
 	}
 	fmt.Fprintln(os.Stderr, "⚠️  缓存不存在, 正在同步...")

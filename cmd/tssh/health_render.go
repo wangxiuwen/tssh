@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/csv"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -267,17 +269,30 @@ func renderHealthMarkdown(results []healthResult, running, totalAlerts int, aler
 }
 
 func renderHealthCSV(results []healthResult) string {
+	// Use encoding/csv so commas in instance names and quotes in alert text
+	// can't break the output. The old Sprintf-based version silently corrupted
+	// any row whose name had `,` or alert had `"`.
 	var sb strings.Builder
-	sb.WriteString("name,ip,cpu_cores,cpu_load,mem_used_mb,mem_total_mb,mem_pct,disk_pct,net_estab,net_tw,jvm_count,alerts\n")
+	w := csv.NewWriter(&sb)
+	_ = w.Write([]string{
+		"name", "ip", "cpu_cores", "cpu_load",
+		"mem_used_mb", "mem_total_mb", "mem_pct", "disk_pct",
+		"net_estab", "net_tw", "jvm_count", "alerts",
+	})
 	for _, r := range results {
 		if r.Skipped {
 			continue
 		}
-		alerts := strings.Join(r.Alerts, "; ")
-		sb.WriteString(fmt.Sprintf("%s,%s,%d,%.1f,%d,%d,%d,%d,%d,%d,%d,\"%s\"\n",
-			r.Name, r.IP, r.CPUCores, r.CPULoad,
-			r.MemUsedMB, r.MemTotalMB, r.MemPct, r.DiskPct,
-			r.NetEstab, r.NetTW, len(r.JVMs), alerts))
+		_ = w.Write([]string{
+			r.Name, r.IP,
+			strconv.Itoa(r.CPUCores), strconv.FormatFloat(r.CPULoad, 'f', 1, 64),
+			strconv.Itoa(r.MemUsedMB), strconv.Itoa(r.MemTotalMB),
+			strconv.Itoa(r.MemPct), strconv.Itoa(r.DiskPct),
+			strconv.Itoa(r.NetEstab), strconv.Itoa(r.NetTW),
+			strconv.Itoa(len(r.JVMs)),
+			strings.Join(r.Alerts, "; "),
+		})
 	}
+	w.Flush()
 	return sb.String()
 }

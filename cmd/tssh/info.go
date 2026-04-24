@@ -204,6 +204,14 @@ func cmdUpdate() {
 	}
 	defer resp.Body.Close()
 
+	// GitHub returns 403 with a JSON error body when rate-limited. Decoding that
+	// as the release struct silently leaves TagName="" — we'd print "已是最新版本"
+	// and exit cleanly. Check status first.
+	if resp.StatusCode != http.StatusOK {
+		fmt.Fprintf(os.Stderr, "❌ GitHub API 返回 %d (可能触发限流, 稍后重试)\n", resp.StatusCode)
+		os.Exit(1)
+	}
+
 	var release struct {
 		TagName string `json:"tag_name"`
 		Assets  []struct {
@@ -216,6 +224,10 @@ func cmdUpdate() {
 		fmt.Fprintf(os.Stderr, "❌ 解析失败: %v\n", err)
 		os.Exit(1)
 	}
+	if release.TagName == "" {
+		fmt.Fprintln(os.Stderr, "❌ GitHub 响应缺少 tag_name")
+		os.Exit(1)
+	}
 
 	latestVersion := strings.TrimPrefix(release.TagName, "v")
 	if latestVersion == version {
@@ -225,11 +237,18 @@ func cmdUpdate() {
 
 	fmt.Printf("📦 发现新版本: v%s → v%s\n", version, latestVersion)
 
-	// Find matching asset
+	// Find matching asset — exact match on the canonical "tssh-<os>-<arch>"
+	// name (Makefile produces assets with this shape). Using exact match rather
+	// than Contains keeps us from accidentally picking "tssh-net-darwin-arm64"
+	// for the main tssh binary if GitHub reorders assets or we add "tssh-v1..."
+	// variants later.
 	target := fmt.Sprintf("tssh-%s-%s", runtime.GOOS, runtime.GOARCH)
+	if runtime.GOOS == "windows" {
+		target += ".exe"
+	}
 	var downloadURL string
 	for _, asset := range release.Assets {
-		if strings.Contains(asset.Name, target) {
+		if asset.Name == target {
 			downloadURL = asset.BrowserDownloadURL
 			break
 		}
@@ -287,4 +306,19 @@ func cmdUpdate() {
 	}
 
 	fmt.Printf("✅ 更新成功! v%s → v%s\n", version, latestVersion)
+
+	// 1.17+: 5 个 binary 分发. tssh update 只换主 tssh, 其余 slim binary
+	// 要手动下载. 提示用户避免混用新旧版本.
+	execDir := filepath.Dir(execPath)
+	var stale []string
+	for _, name := range []string{"tssh-k8s", "tssh-net", "tssh-arms", "tssh-db"} {
+		if _, err := os.Stat(filepath.Join(execDir, name)); err == nil {
+			stale = append(stale, name)
+		}
+	}
+	if len(stale) > 0 {
+		fmt.Fprintf(os.Stderr, "\n⚠️  检测到同目录还有 slim binary: %s\n", strings.Join(stale, ", "))
+		fmt.Fprintf(os.Stderr, "    建议同步更新到 v%s, 否则共享 internal/ 状态可能不一致:\n", latestVersion)
+		fmt.Fprintf(os.Stderr, "    从 https://github.com/wangxiuwen/tssh/releases/tag/v%s 下载\n", latestVersion)
+	}
 }

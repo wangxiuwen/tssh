@@ -17,22 +17,10 @@ import (
 	"github.com/wangxiuwen/tssh/internal/shared"
 )
 
-// RDS is the package entry point — same pattern as Redis().
+// RDS is the package entry point — same fall-through pattern as Redis:
+// `tssh rds <name>` direct-connects if `<name>` isn't a known subcommand.
 func RDS(rt core.Runtime, args []string) {
 	appRuntime = rt
-	rdsGroup.Dispatch(args)
-}
-
-var rdsGroup = shared.CmdGroup{
-	Name: "rds",
-	Desc: "RDS 实例管理和连接",
-	Commands: []shared.SubCmd{
-		{Name: "ls", Aliases: []string{"list"}, Desc: "列出 RDS 实例 [-j]", Run: cmdRDSLs},
-		{Name: "info", Desc: "RDS 实例详情 <name|id> [-j]", Run: cmdRDSInfo},
-	},
-}
-
-func cmdRDS(args []string) {
 	if len(args) == 0 {
 		rdsGroup.PrintHelp()
 		os.Exit(1)
@@ -48,6 +36,15 @@ func cmdRDS(args []string) {
 	default:
 		cmdRDSConnect(args)
 	}
+}
+
+var rdsGroup = shared.CmdGroup{
+	Name: "rds",
+	Desc: "RDS 实例管理和连接",
+	Commands: []shared.SubCmd{
+		{Name: "ls", Aliases: []string{"list"}, Desc: "列出 RDS 实例 [-j]", Run: cmdRDSLs},
+		{Name: "info", Desc: "RDS 实例详情 <name|id> [-j]", Run: cmdRDSInfo},
+	},
 }
 
 // cmdRDSLs lists all RDS instances

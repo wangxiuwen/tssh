@@ -7,6 +7,9 @@ import (
 )
 
 func shortenName(name string, maxLen int) string {
+	if maxLen <= 0 {
+		return ""
+	}
 	if len(name) <= maxLen {
 		return name
 	}
@@ -18,6 +21,11 @@ func shortenName(name string, maxLen int) string {
 		if len(short) <= maxLen {
 			return short
 		}
+	}
+	// Guard against maxLen < 3 — name[:maxLen-2] would panic or return empty
+	// and we still want *some* hint of the original name.
+	if maxLen < 3 {
+		return name[:maxLen]
 	}
 	return name[:maxLen-2] + ".."
 }

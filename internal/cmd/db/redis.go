@@ -20,28 +20,15 @@ import (
 var appRuntime core.Runtime
 
 // Redis is the package entry point wired into cmd/tssh and cmd/tssh-db.
+// Dispatch is custom (not shared.CmdGroup.Dispatch) because Redis has a
+// fall-through pattern: `tssh redis <name>` directly connects — any arg
+// that isn't a known subcommand is treated as an instance name.
 func Redis(rt core.Runtime, args []string) {
 	appRuntime = rt
-	redisGroup.Dispatch(args)
-}
-
-var redisGroup = shared.CmdGroup{
-	Name:    "redis",
-	Desc:    "Redis 实例管理和连接",
-	Default: func(args []string) { cmdRedisConnect(nil) },
-	Commands: []shared.SubCmd{
-		{Name: "ls", Aliases: []string{"list"}, Desc: "列出 Redis 实例 [-j]", Run: cmdRedisLs},
-		{Name: "info", Desc: "Redis 实例详情 <name|id> [-j]", Run: cmdRedisInfo},
-	},
-}
-
-func cmdRedis(args []string) {
 	if len(args) == 0 {
-		redisGroup.PrintHelp()
-		os.Exit(1)
+		cmdRedisConnect(nil)
 		return
 	}
-	// Check if it's a known subcommand or help flag
 	switch args[0] {
 	case "ls", "list":
 		cmdRedisLs(args[1:])
@@ -50,9 +37,17 @@ func cmdRedis(args []string) {
 	case "help", "-h", "--help":
 		redisGroup.PrintHelp()
 	default:
-		// Treat as connect: tssh redis <name>
 		cmdRedisConnect(args)
 	}
+}
+
+var redisGroup = shared.CmdGroup{
+	Name: "redis",
+	Desc: "Redis 实例管理和连接",
+	Commands: []shared.SubCmd{
+		{Name: "ls", Aliases: []string{"list"}, Desc: "列出 Redis 实例 [-j]", Run: cmdRedisLs},
+		{Name: "info", Desc: "Redis 实例详情 <name|id> [-j]", Run: cmdRedisInfo},
+	},
 }
 
 // cmdRedisLs lists all Redis instances

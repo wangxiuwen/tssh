@@ -237,18 +237,20 @@ func cmdUpdate() {
 
 	fmt.Printf("📦 发现新版本: v%s → v%s\n", version, latestVersion)
 
-	// Find matching asset — exact match on the canonical "tssh-<os>-<arch>"
-	// name (Makefile produces assets with this shape). Using exact match rather
-	// than Contains keeps us from accidentally picking "tssh-net-darwin-arm64"
-	// for the main tssh binary if GitHub reorders assets or we add "tssh-v1..."
-	// variants later.
+	// Find matching asset. CI appends "-<version>" to every asset:
+	//   tssh-darwin-arm64         → tssh-darwin-arm64-v1.17.0
+	//   tssh-k8s-darwin-arm64     → tssh-k8s-darwin-arm64-v1.17.0
+	//   tssh-windows-amd64.exe    → tssh-windows-amd64.exe-v1.17.0
+	// We want the main tssh, not a slim binary. Prefix-match on "<target>-v"
+	// so "tssh-net-..." and "tssh-k8s-..." don't accidentally match.
 	target := fmt.Sprintf("tssh-%s-%s", runtime.GOOS, runtime.GOARCH)
 	if runtime.GOOS == "windows" {
 		target += ".exe"
 	}
+	prefix := target + "-v"
 	var downloadURL string
 	for _, asset := range release.Assets {
-		if asset.Name == target {
+		if strings.HasPrefix(asset.Name, prefix) {
 			downloadURL = asset.BrowserDownloadURL
 			break
 		}

@@ -431,12 +431,13 @@ func doBatchCopy(pattern, localPath, remoteDst string) {
 	}
 }
 
-// parseProfileArg strips `--profile <name>` / `-p <name>` from argv,
-// returning the positional args and profile name. Shared by tscp/trsync
-// since they bypass main()'s flag parsing.
+// parseProfileArg strips `--profile <name>` from argv, returning the positional
+// args and profile name. Shared by tscp/trsync since they bypass main()'s flag
+// parsing. Only long form: `-p` is kept free for future tscp/trsync options so
+// it doesn't replay the collision we had with subcommand `-p` port flags.
 func parseProfileArg(argv []string) (rest []string, profile string) {
 	for i := 0; i < len(argv); i++ {
-		if (argv[i] == "--profile" || argv[i] == "-p") && i+1 < len(argv) {
+		if argv[i] == "--profile" && i+1 < len(argv) {
 			profile = argv[i+1]
 			i++
 			continue

@@ -29,7 +29,12 @@ func cmdHealth(args []string) {
 			alertOnly = true
 		case "--format":
 			if i+1 < len(args) {
-				outputFormat = args[i+1]
+				f := args[i+1]
+				if f != "table" && f != "json" && f != "md" && f != "markdown" && f != "csv" {
+					fmt.Fprintf(os.Stderr, "❌ --format %s: 支持 table / json / md / csv\n", f)
+					os.Exit(2)
+				}
+				outputFormat = f
 				i++
 			}
 		case "-o", "--output":

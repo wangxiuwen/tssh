@@ -431,28 +431,47 @@ func doBatchCopy(pattern, localPath, remoteDst string) {
 	}
 }
 
+// parseProfileArg strips `--profile <name>` / `-p <name>` from argv,
+// returning the positional args and profile name. Shared by tscp/trsync
+// since they bypass main()'s flag parsing.
+func parseProfileArg(argv []string) (rest []string, profile string) {
+	for i := 0; i < len(argv); i++ {
+		if (argv[i] == "--profile" || argv[i] == "-p") && i+1 < len(argv) {
+			profile = argv[i+1]
+			i++
+			continue
+		}
+		rest = append(rest, argv[i])
+	}
+	return
+}
+
 func tscpMain() {
-	if len(os.Args) < 3 {
+	args, profile := parseProfileArg(os.Args[1:])
+	globalProfile = profile
+	if len(args) < 2 {
 		fmt.Println("tscp — 阿里云 ECS 文件拷贝工具")
 		fmt.Println("\n用法:")
-		fmt.Println("  tscp <local> <name>:<remote>   上传")
-		fmt.Println("  tscp <name>:<remote> <local>   下载")
+		fmt.Println("  tscp [--profile <name>] <local> <name>:<remote>   上传")
+		fmt.Println("  tscp [--profile <name>] <name>:<remote> <local>   下载")
 		return
 	}
-	doCopy(os.Args[1], os.Args[2])
+	doCopy(args[0], args[1])
 }
 
 func trsyncMain() {
-	if len(os.Args) < 3 {
+	args, profile := parseProfileArg(os.Args[1:])
+	globalProfile = profile
+	if len(args) < 2 {
 		fmt.Println("trsync — 阿里云 ECS rsync 同步工具")
 		fmt.Println("\n用法:")
-		fmt.Println("  trsync <local_dir> <name>:<remote_dir>   上传同步")
-		fmt.Println("  trsync <name>:<remote_dir> <local_dir>   下载同步")
+		fmt.Println("  trsync [--profile <name>] <local_dir> <name>:<remote_dir>   上传同步")
+		fmt.Println("  trsync [--profile <name>] <name>:<remote_dir> <local_dir>   下载同步")
 		return
 	}
 
-	src := os.Args[1]
-	dst := os.Args[2]
+	src := args[0]
+	dst := args[1]
 
 	config := mustLoadConfig()
 	cache := getCache()

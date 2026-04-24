@@ -137,6 +137,11 @@ _tssh() {
 compdef _tssh tssh
 compdef _tssh tscp
 compdef _tssh trsync
+# v1.17+ slim binaries share the same instance list
+compdef _tssh tssh-k8s
+compdef _tssh tssh-net
+compdef _tssh tssh-arms
+compdef _tssh tssh-db
 `, exe)
 	} else {
 		fmt.Printf(`# 添加到 ~/.bashrc:
@@ -147,6 +152,11 @@ _tssh() {
 complete -F _tssh tssh
 complete -F _tssh tscp
 complete -F _tssh trsync
+# v1.17+ slim binaries share the same instance list
+complete -F _tssh tssh-k8s
+complete -F _tssh tssh-net
+complete -F _tssh tssh-arms
+complete -F _tssh tssh-db
 `, exe)
 	}
 }

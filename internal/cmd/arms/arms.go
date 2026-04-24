@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -351,7 +352,12 @@ func cmdArmsQuery(args []string) {
 	var remaining []string
 	for i := 0; i < len(args); i++ {
 		if args[i] == "-d" && i+1 < len(args) {
-			fmt.Sscanf(args[i+1], "%d", &dsID)
+			n, err := strconv.Atoi(args[i+1])
+			if err != nil || n <= 0 {
+				fmt.Fprintf(os.Stderr, "❌ -d %s: 需要正整数数据源 ID\n", args[i+1])
+				os.Exit(2)
+			}
+			dsID = n
 			i++
 		} else if args[i] == "-j" || args[i] == "--json" {
 			continue

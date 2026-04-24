@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -18,15 +19,22 @@ func cmdTail(args []string) {
 		case "--interval", "-i":
 			if i+1 < len(args) {
 				i++
-				d, err := time.ParseDuration(args[i] + "s")
-				if err == nil {
-					interval = d
+				sec, err := parseTimeoutSec(args[i])
+				if err != nil || sec <= 0 {
+					fmt.Fprintf(os.Stderr, "❌ --interval %s: 需要正整数或时长 (如 2s / 1m)\n", args[i])
+					os.Exit(2)
 				}
+				interval = time.Duration(sec) * time.Second
 			}
 		case "-n":
 			if i+1 < len(args) {
 				i++
-				fmt.Sscanf(args[i], "%d", &lines)
+				n, err := strconv.Atoi(args[i])
+				if err != nil || n <= 0 {
+					fmt.Fprintf(os.Stderr, "❌ -n %s: 需要正整数\n", args[i])
+					os.Exit(2)
+				}
+				lines = n
 			}
 		default:
 			if target == "" {

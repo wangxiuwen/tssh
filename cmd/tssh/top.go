@@ -24,11 +24,12 @@ func cmdTop(args []string) {
 			}
 		case "--interval", "-n":
 			if i+1 < len(args) {
-				sec := 0
-				fmt.Sscanf(args[i+1], "%d", &sec)
-				if sec > 0 {
-					interval = time.Duration(sec) * time.Second
+				sec, err := parseTimeoutSec(args[i+1])
+				if err != nil || sec <= 0 {
+					fmt.Fprintf(os.Stderr, "❌ --interval %s: 需要正整数或时长\n", args[i+1])
+					os.Exit(2)
 				}
+				interval = time.Duration(sec) * time.Second
 				i++
 			}
 		default:

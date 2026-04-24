@@ -61,7 +61,7 @@ func main() {
 	}
 }
 
-const version = "1.17.0"
+const version = "1.17.1"
 
 func usage() {
 	fmt.Printf(`tssh-k8s %s — k8s-only slice of tssh

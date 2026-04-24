@@ -19,7 +19,7 @@ import (
 	"github.com/wangxiuwen/tssh/internal/runtime"
 )
 
-const version = "1.17.0"
+const version = "1.17.1"
 
 func main() {
 	profile := ""

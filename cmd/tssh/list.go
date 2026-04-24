@@ -69,7 +69,9 @@ func cmdSync() {
 // Returns error instead of os.Exit so callers running in a long-lived process
 // (tssh web, auto-refresh in main) don't die on a transient API failure.
 func cmdSyncQuiet() error {
-	config, err := LoadConfig()
+	// Honor globalProfile — LoadConfig() with empty profile picks the default
+	// one from config.json which may be the wrong account.
+	config, err := LoadConfigWithProfile(globalProfile)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}

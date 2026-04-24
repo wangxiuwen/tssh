@@ -69,13 +69,21 @@ func Browser(rt core.Runtime, args []string) {
 			}
 			chromePath = args[i+1]
 			i++
-		case "--profile":
+		case "--chrome-profile", "--profile-dir":
 			if i+1 >= len(args) {
-				fmt.Fprintln(os.Stderr, "❌ --profile 需要一个目录路径")
+				fmt.Fprintln(os.Stderr, "❌ --chrome-profile 需要一个目录路径")
 				os.Exit(2)
 			}
 			profileOverride = args[i+1]
 			i++
+		case "--profile":
+			// --profile is the GLOBAL Aliyun profile flag, stripped by main()
+			// before we get here. If we see it now it means the user put it
+			// after the subcommand, expecting browser-local behavior — warn.
+			fmt.Fprintln(os.Stderr, "❌ --profile 被 tssh/tssh-net 的全局 Aliyun 凭证 flag 抢占了")
+			fmt.Fprintln(os.Stderr, "   如果要指定 Chrome profile 目录, 用 --chrome-profile <dir>")
+			fmt.Fprintln(os.Stderr, "   如果要指定 Aliyun profile, 放在 <target> 前面: tssh browser --profile <aliyun-profile> <target>")
+			os.Exit(2)
 		case "-h", "--help":
 			printBrowserHelp()
 			return
@@ -292,7 +300,8 @@ func printBrowserHelp() {
   [url ...]               启动时直接打开的页面 (可多个)
   -p, --port <port>       本地 SOCKS5 端口 (默认: 自动分配空闲端口)
   --chrome, --browser <p> Chrome/Chromium/Edge 可执行路径 (默认自动探测)
-  --profile <dir>         自定义 profile 目录 (默认: ~/.tssh/browser-profiles/<name>/)
+  --chrome-profile <dir>  自定义 Chrome profile 目录 (默认: ~/.tssh/browser-profiles/<name>/)
+                          (--profile 已被全局 Aliyun profile 占用)
   --fresh, --reset        清空并重建 profile (忘记所有 cookies / 已登录状态)
   -j, --json              浏览器开启后 stdout 一行 JSON (AI/脚本用)
 

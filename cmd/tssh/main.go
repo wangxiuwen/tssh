@@ -31,8 +31,10 @@ func main() {
 	// Parse global flags (--profile) before subcommand
 	args := os.Args[1:]
 	var filteredArgs []string
+	// Only --profile is a global alias; -p collides with subcommand port flags
+	// (socks/shell/fwd/browser/web all use -p for port). Long form only.
 	for i := 0; i < len(args); i++ {
-		if (args[i] == "--profile" || args[i] == "-p") && i+1 < len(args) {
+		if args[i] == "--profile" && i+1 < len(args) {
 			globalProfile = args[i+1]
 			i++
 		} else {

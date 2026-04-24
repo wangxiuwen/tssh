@@ -17,9 +17,10 @@ func main() {
 	profile := ""
 	args := os.Args[1:]
 
+	// --profile long-form only; -p reserved for subcommand-level port flags.
 	var rest []string
 	for i := 0; i < len(args); i++ {
-		if (args[i] == "--profile" || args[i] == "-p") && i+1 < len(args) {
+		if args[i] == "--profile" && i+1 < len(args) {
 			profile = args[i+1]
 			i++
 			continue

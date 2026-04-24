@@ -388,6 +388,9 @@ func mysqlRepl(conn net.Conn, user, password string) {
 	fmt.Fprintf(os.Stderr, "输入 SQL 命令 (quit 退出):\n\n")
 
 	scanner := bufio.NewScanner(os.Stdin)
+	// Raise buffer: default 64KB trips on any non-trivial paste (large INSERT,
+	// multi-line CREATE TABLE). 16MB matches MySQL's default max_allowed_packet.
+	scanner.Buffer(make([]byte, 64*1024), 16*1024*1024)
 	var multiLine strings.Builder
 
 	for {

@@ -18,6 +18,10 @@ import (
 func redisRepl(conn net.Conn) {
 	reader := bufio.NewReader(conn)
 	scanner := bufio.NewScanner(os.Stdin)
+	// Default 64KB is too small when pasting large values (e.g. SET foo "<big json>").
+	// Cap at 10MB — Redis protocol itself permits 512MB strings but typing one
+	// interactively beyond 10MB is never the intent.
+	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
 
 	host := conn.RemoteAddr().String()
 

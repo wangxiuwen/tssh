@@ -11,7 +11,7 @@ import (
 	"github.com/wangxiuwen/tssh/internal/shared"
 )
 
-const version = "1.17.1"
+const version = "1.17.2"
 
 // Global flags parsed from os.Args before subcommand dispatch
 var globalProfile string

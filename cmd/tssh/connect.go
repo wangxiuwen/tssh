@@ -7,12 +7,25 @@ import (
 	"strings"
 )
 
+// requireRunning 拦截 Stopped/Starting/Stopping 等状态; Cloud Assistant 反向通道
+// 在 not-running 实例上要么超时 hang, 要么返回看不懂的 InvalidInstance.NotRunning,
+// 不如直接挡掉给用户清晰提示.
+func requireRunning(inst *Instance, action string) {
+	if inst.Status == "Running" {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "⛔ %s (%s) 当前状态: %s, 不能 %s\n", inst.Name, inst.ID, inst.Status, action)
+	fmt.Fprintf(os.Stderr, "   先开机: tssh start %s\n", inst.Name)
+	os.Exit(1)
+}
+
 // cmdConnect connects interactively
 func cmdConnect(target string) {
 	cache := getCache()
 	ensureCache(cache)
 
 	inst := resolveInstanceOrExit(cache, target)
+	requireRunning(inst, "连接")
 
 	config := mustLoadConfig()
 
@@ -25,6 +38,7 @@ func cmdConnect(target string) {
 func cmdRemoteExec(target, command string, timeout int) {
 	cache := getCache()
 	inst := resolveInstanceOrExit(cache, target)
+	requireRunning(inst, "执行命令")
 
 	config := mustLoadConfig()
 	client, err := NewAliyunClient(config)
@@ -85,6 +99,7 @@ func cmdPortForward(target, spec string) {
 
 	cache := getCache()
 	inst := resolveInstanceOrExit(cache, target)
+	requireRunning(inst, "端口转发")
 
 	config := mustLoadConfig()
 

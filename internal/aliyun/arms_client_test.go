@@ -26,7 +26,7 @@ func TestNewARMSClient_Success(t *testing.T) {
 	orig := armsClientFactory
 	defer func() { armsClientFactory = orig }()
 
-	armsClientFactory = func(region, id, secret string) (armsRequester, error) {
+	armsClientFactory = func(region, id, secret, stsToken string) (armsRequester, error) {
 		return func(apiName string, params map[string]string) ([]byte, error) {
 			return []byte("{}"), nil
 		}, nil
@@ -47,7 +47,7 @@ func TestNewARMSClient_Error(t *testing.T) {
 	orig := armsClientFactory
 	defer func() { armsClientFactory = orig }()
 
-	armsClientFactory = func(region, id, secret string) (armsRequester, error) {
+	armsClientFactory = func(region, id, secret, stsToken string) (armsRequester, error) {
 		return nil, fmt.Errorf("bad credentials")
 	}
 

@@ -44,13 +44,16 @@ func (c *RDSClient) rateLimit() {
 }
 
 // rdsClientFactory is overridable in tests
-var rdsClientFactory = func(region, accessKeyID, accessKeySecret string) (rdsAPI, error) {
+var rdsClientFactory = func(region, accessKeyID, accessKeySecret, securityToken string) (rdsAPI, error) {
+	if securityToken != "" {
+		return rds.NewClientWithStsToken(region, accessKeyID, accessKeySecret, securityToken)
+	}
 	return rds.NewClientWithAccessKey(region, accessKeyID, accessKeySecret)
 }
 
 // NewRDSClient creates a new Aliyun RDS client from config
 func NewRDSClient(cfg *model.Config) (*RDSClient, error) {
-	api, err := rdsClientFactory(cfg.Region, cfg.AccessKeyID, cfg.AccessKeySecret)
+	api, err := rdsClientFactory(cfg.Region, cfg.AccessKeyID, cfg.AccessKeySecret, cfg.SecurityToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create RDS client: %w", err)
 	}

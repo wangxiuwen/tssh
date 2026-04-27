@@ -57,9 +57,9 @@ When managing a fleet of hundreds of servers without public IP addresses, the tr
 ## Prerequisites
 
 Aliyun RAM AccessKeys. Credentials are searched in this order:
-1. Environment variables (`ALIBABA_CLOUD_ACCESS_KEY_ID`, `ALIBABA_CLOUD_ACCESS_KEY_SECRET`, `ALIBABA_CLOUD_REGION_ID`)
+1. Environment variables (`ALIBABA_CLOUD_ACCESS_KEY_ID`, `ALIBABA_CLOUD_ACCESS_KEY_SECRET`, `ALIBABA_CLOUD_REGION_ID`, optional `ALIBABA_CLOUD_SECURITY_TOKEN` for STS)
 2. tssh multi-account config (`~/.tssh/config.json`)
-3. Aliyun CLI config (`~/.aliyun/config.json`)
+3. Aliyun CLI config (`~/.aliyun/config.json`) — both static `AK` profiles and `CloudSSO` / STS profiles are supported (`sts_token` is forwarded). When the STS token expires, run `aliyun sso login --profile <name>` to refresh.
 
 ## Installation
 

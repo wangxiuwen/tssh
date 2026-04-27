@@ -44,13 +44,16 @@ func (c *RedisClient) rateLimit() {
 }
 
 // redisClientFactory is overridable in tests
-var redisClientFactory = func(region, accessKeyID, accessKeySecret string) (redisAPI, error) {
+var redisClientFactory = func(region, accessKeyID, accessKeySecret, securityToken string) (redisAPI, error) {
+	if securityToken != "" {
+		return r_kvstore.NewClientWithStsToken(region, accessKeyID, accessKeySecret, securityToken)
+	}
 	return r_kvstore.NewClientWithAccessKey(region, accessKeyID, accessKeySecret)
 }
 
 // NewRedisClient creates a new Aliyun Redis (R-KVStore) client from config
 func NewRedisClient(cfg *model.Config) (*RedisClient, error) {
-	api, err := redisClientFactory(cfg.Region, cfg.AccessKeyID, cfg.AccessKeySecret)
+	api, err := redisClientFactory(cfg.Region, cfg.AccessKeyID, cfg.AccessKeySecret, cfg.SecurityToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Redis client: %w", err)
 	}

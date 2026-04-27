@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/wangxiuwen/tssh/internal/model"
 )
@@ -492,6 +494,96 @@ func TestLoadFromTsshConfig_NoDefaultFallsToDefault(t *testing.T) {
 	if result.AccessKeyID != "def-id" {
 		t.Errorf("expected def-id, got %s", result.AccessKeyID)
 	}
+}
+
+// 模拟 aliyun-cli `aliyun sso login` 写出的 CloudSSO profile, 校验
+// sts_token 能被透传到 model.Config (否则 SDK 用纯 STS.* AK 调用会被拒).
+func TestLoadFromAliyunConfig_CloudSSO(t *testing.T) {
+	os.Unsetenv("ALIBABA_CLOUD_ACCESS_KEY_ID")
+	os.Unsetenv("ALIBABA_CLOUD_ACCESS_KEY_SECRET")
+
+	home := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", home)
+	defer os.Setenv("HOME", origHome)
+
+	aliyunDir := filepath.Join(home, ".aliyun")
+	os.MkdirAll(aliyunDir, 0755)
+
+	future := time.Now().Add(1 * time.Hour).Unix()
+	raw := `{"profiles":[{"name":"sso","mode":"CloudSSO","access_key_id":"STS.test","access_key_secret":"sec","sts_token":"tok","sts_expiration":` +
+		strings.TrimSpace(formatInt(future)) + `,"region_id":"cn-shanghai"}]}`
+	os.WriteFile(filepath.Join(aliyunDir, "config.json"), []byte(raw), 0644)
+
+	got, err := Load("sso")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.SecurityToken != "tok" {
+		t.Errorf("expected sts_token to propagate, got %q", got.SecurityToken)
+	}
+	if got.AccessKeyID != "STS.test" {
+		t.Errorf("expected STS AK, got %q", got.AccessKeyID)
+	}
+}
+
+// 用户 SSO 登录但 token 已过期, 必须报"请重新 sso login"而不是把空/过期凭据
+// 直接喂给 SDK 让它返回看不懂的 InvalidAccessKeyId.Inactive.
+func TestLoadFromAliyunConfig_CloudSSOExpired(t *testing.T) {
+	os.Unsetenv("ALIBABA_CLOUD_ACCESS_KEY_ID")
+	os.Unsetenv("ALIBABA_CLOUD_ACCESS_KEY_SECRET")
+
+	home := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", home)
+	defer os.Setenv("HOME", origHome)
+
+	aliyunDir := filepath.Join(home, ".aliyun")
+	os.MkdirAll(aliyunDir, 0755)
+
+	past := time.Now().Add(-1 * time.Hour).Unix()
+	raw := `{"profiles":[{"name":"sso","mode":"CloudSSO","access_key_id":"STS.test","access_key_secret":"sec","sts_token":"tok","sts_expiration":` +
+		strings.TrimSpace(formatInt(past)) + `,"region_id":"cn-shanghai"}]}`
+	os.WriteFile(filepath.Join(aliyunDir, "config.json"), []byte(raw), 0644)
+
+	_, err := Load("sso")
+	if err == nil {
+		t.Fatal("expected error for expired STS")
+	}
+	if !strings.Contains(err.Error(), "过期") {
+		t.Errorf("error should mention expiration, got: %v", err)
+	}
+}
+
+// SSO profile 完全没填 AK (例如 aliyun configure --mode CloudSSO 但还没 sso login),
+// 我们应该提示去刷新, 而不是抛 SDK 的 MissingParameter.
+func TestLoadFromAliyunConfig_SSOMissingCreds(t *testing.T) {
+	os.Unsetenv("ALIBABA_CLOUD_ACCESS_KEY_ID")
+	os.Unsetenv("ALIBABA_CLOUD_ACCESS_KEY_SECRET")
+
+	home := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", home)
+	defer os.Setenv("HOME", origHome)
+
+	aliyunDir := filepath.Join(home, ".aliyun")
+	os.MkdirAll(aliyunDir, 0755)
+
+	raw := `{"profiles":[{"name":"sso","mode":"CloudSSO","access_key_id":"","access_key_secret":"","region_id":"cn-shanghai"}]}`
+	os.WriteFile(filepath.Join(aliyunDir, "config.json"), []byte(raw), 0644)
+
+	_, err := Load("sso")
+	if err == nil {
+		t.Fatal("expected error for empty SSO credentials")
+	}
+	if !strings.Contains(err.Error(), "sso login") {
+		t.Errorf("error should hint at `aliyun sso login`, got: %v", err)
+	}
+}
+
+func formatInt(n int64) string {
+	b, _ := json.Marshal(n)
+	return string(b)
 }
 
 func TestLoadNoConfigFiles(t *testing.T) {

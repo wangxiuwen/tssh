@@ -41,9 +41,9 @@
 ## 凭证配置
 
 需要 RAM 用户的 API AccessKey 配置。工具会按以下优先级自动寻找凭证：
-1. 环境变量 (`ALIBABA_CLOUD_ACCESS_KEY_ID`, `ALIBABA_CLOUD_ACCESS_KEY_SECRET`, `ALIBABA_CLOUD_REGION_ID`)
+1. 环境变量 (`ALIBABA_CLOUD_ACCESS_KEY_ID`, `ALIBABA_CLOUD_ACCESS_KEY_SECRET`, `ALIBABA_CLOUD_REGION_ID`; STS 场景可加 `ALIBABA_CLOUD_SECURITY_TOKEN`)
 2. tssh 多账号配置 (`~/.tssh/config.json`)
-3. 阿里云官方 CLI 的配置缓存 (`~/.aliyun/config.json`)
+3. 阿里云官方 CLI 的配置缓存 (`~/.aliyun/config.json`) — 支持静态 `AK` 和 `CloudSSO` / STS 两种 profile (`sts_token` 会自动透传)；STS 过期时执行 `aliyun sso login --profile <name>` 刷新。
 
 ## 快速安装
 

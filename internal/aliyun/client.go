@@ -80,14 +80,18 @@ func isThrottled(err error) bool {
 		strings.Contains(s, "TooManyRequests") || strings.Contains(s, "ServiceUnavailable")
 }
 
-// ecsClientFactory is the function used to create SDK clients — overridable in tests
-var ecsClientFactory = func(region, accessKeyID, accessKeySecret string) (ecsAPI, error) {
+// ecsClientFactory is the function used to create SDK clients — overridable in tests.
+// 当 securityToken 非空时走 STS (CloudSSO / RamRoleArn 等) 路径, 否则用静态 AK.
+var ecsClientFactory = func(region, accessKeyID, accessKeySecret, securityToken string) (ecsAPI, error) {
+	if securityToken != "" {
+		return ecs.NewClientWithStsToken(region, accessKeyID, accessKeySecret, securityToken)
+	}
 	return ecs.NewClientWithAccessKey(region, accessKeyID, accessKeySecret)
 }
 
 // NewClient creates a new Aliyun ECS client from config
 func NewClient(cfg *model.Config) (*Client, error) {
-	api, err := ecsClientFactory(cfg.Region, cfg.AccessKeyID, cfg.AccessKeySecret)
+	api, err := ecsClientFactory(cfg.Region, cfg.AccessKeyID, cfg.AccessKeySecret, cfg.SecurityToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ECS client: %w", err)
 	}

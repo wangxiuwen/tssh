@@ -109,8 +109,14 @@ type TraceSearchOptions struct {
 }
 
 // armsClientFactory creates the SDK requester — overridable in tests
-var armsClientFactory = func(region, accessKeyID, accessKeySecret string) (armsRequester, error) {
-	client, err := sdk.NewClientWithAccessKey(region, accessKeyID, accessKeySecret)
+var armsClientFactory = func(region, accessKeyID, accessKeySecret, securityToken string) (armsRequester, error) {
+	var client *sdk.Client
+	var err error
+	if securityToken != "" {
+		client, err = sdk.NewClientWithStsToken(region, accessKeyID, accessKeySecret, securityToken)
+	} else {
+		client, err = sdk.NewClientWithAccessKey(region, accessKeyID, accessKeySecret)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +140,7 @@ var armsClientFactory = func(region, accessKeyID, accessKeySecret string) (armsR
 
 // NewARMSClient creates a new ARMS API client from config
 func NewARMSClient(cfg *model.Config) (*ARMSClient, error) {
-	requester, err := armsClientFactory(cfg.Region, cfg.AccessKeyID, cfg.AccessKeySecret)
+	requester, err := armsClientFactory(cfg.Region, cfg.AccessKeyID, cfg.AccessKeySecret, cfg.SecurityToken)
 	if err != nil {
 		return nil, fmt.Errorf("ARMS client: %w", err)
 	}

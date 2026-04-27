@@ -164,7 +164,7 @@ func TestFetchAllRDSInstances_Error(t *testing.T) {
 func TestNewRDSClient_InvalidCredentials(t *testing.T) {
 	origFactory := rdsClientFactory
 	defer func() { rdsClientFactory = origFactory }()
-	rdsClientFactory = func(region, accessKeyID, accessKeySecret string) (rdsAPI, error) {
+	rdsClientFactory = func(region, accessKeyID, accessKeySecret, securityToken string) (rdsAPI, error) {
 		return nil, fmt.Errorf("invalid credentials")
 	}
 
@@ -177,7 +177,7 @@ func TestNewRDSClient_InvalidCredentials(t *testing.T) {
 func TestNewRDSClient_Success(t *testing.T) {
 	origFactory := rdsClientFactory
 	defer func() { rdsClientFactory = origFactory }()
-	rdsClientFactory = func(region, accessKeyID, accessKeySecret string) (rdsAPI, error) {
+	rdsClientFactory = func(region, accessKeyID, accessKeySecret, securityToken string) (rdsAPI, error) {
 		return &mockRDS{}, nil
 	}
 

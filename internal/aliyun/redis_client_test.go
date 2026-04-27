@@ -149,7 +149,7 @@ func TestNewRedisClient_InvalidCredentials(t *testing.T) {
 	// NewRedisClient with empty credentials — test it doesn't panic
 	origFactory := redisClientFactory
 	defer func() { redisClientFactory = origFactory }()
-	redisClientFactory = func(region, accessKeyID, accessKeySecret string) (redisAPI, error) {
+	redisClientFactory = func(region, accessKeyID, accessKeySecret, securityToken string) (redisAPI, error) {
 		return nil, fmt.Errorf("invalid credentials")
 	}
 
@@ -162,7 +162,7 @@ func TestNewRedisClient_InvalidCredentials(t *testing.T) {
 func TestNewRedisClient_Success(t *testing.T) {
 	origFactory := redisClientFactory
 	defer func() { redisClientFactory = origFactory }()
-	redisClientFactory = func(region, accessKeyID, accessKeySecret string) (redisAPI, error) {
+	redisClientFactory = func(region, accessKeyID, accessKeySecret, securityToken string) (redisAPI, error) {
 		return &mockRedis{}, nil
 	}
 

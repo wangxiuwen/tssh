@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/wangxiuwen/tssh/internal/model"
 )
@@ -21,6 +22,7 @@ type TsshConfig struct {
 func Load(profile string) (*model.Config, error) {
 	akID := os.Getenv("ALIBABA_CLOUD_ACCESS_KEY_ID")
 	akSecret := os.Getenv("ALIBABA_CLOUD_ACCESS_KEY_SECRET")
+	stsToken := os.Getenv("ALIBABA_CLOUD_SECURITY_TOKEN")
 	region := os.Getenv("ALIBABA_CLOUD_REGION_ID")
 	if region == "" {
 		region = "cn-beijing"
@@ -33,6 +35,7 @@ func Load(profile string) (*model.Config, error) {
 		return &model.Config{
 			AccessKeyID:     akID,
 			AccessKeySecret: akSecret,
+			SecurityToken:   stsToken,
 			Region:          region,
 			ProfileName:     "env",
 		}, nil
@@ -55,6 +58,9 @@ func Load(profile string) (*model.Config, error) {
 					if p.Region == "" {
 						p.Region = "cn-beijing"
 					}
+					if err := validateCreds(&p, tsshConfigPath); err != nil {
+						return nil, err
+					}
 					return &p, nil
 				}
 			}
@@ -73,8 +79,11 @@ func Load(profile string) (*model.Config, error) {
 	var cfg struct {
 		Profiles []struct {
 			Name            string `json:"name"`
+			Mode            string `json:"mode"`
 			AccessKeyID     string `json:"access_key_id"`
 			AccessKeySecret string `json:"access_key_secret"`
+			StsToken        string `json:"sts_token"`
+			StsExpiration   int64  `json:"sts_expiration"`
 			RegionID        string `json:"region_id"`
 		} `json:"profiles"`
 	}
@@ -92,15 +101,39 @@ func Load(profile string) (*model.Config, error) {
 			if r == "" {
 				r = "cn-beijing"
 			}
-			return &model.Config{
+			result := &model.Config{
 				AccessKeyID:     p.AccessKeyID,
 				AccessKeySecret: p.AccessKeySecret,
+				SecurityToken:   p.StsToken,
 				Region:          r,
 				ProfileName:     p.Name,
-			}, nil
+			}
+			if err := validateCreds(result, configPath); err != nil {
+				// SSO-style profiles (CloudSSO / RamRoleArn / ...) need a refresh.
+				if p.Mode != "" && p.Mode != "AK" {
+					return nil, fmt.Errorf("profile '%s' (mode=%s) 凭据为空, 请先运行 `aliyun sso login --profile %s` 或 `aliyun configure --profile %s` 刷新凭据 (来自 %s)",
+						p.Name, p.Mode, p.Name, p.Name, configPath)
+				}
+				return nil, err
+			}
+			// CloudSSO 的 STS 通常 1 小时过期, 过期后必须重新登录.
+			if p.StsToken != "" && p.StsExpiration > 0 && time.Now().Unix() > p.StsExpiration {
+				return nil, fmt.Errorf("profile '%s' STS 凭据已于 %s 过期, 请运行 `aliyun sso login --profile %s` 刷新",
+					p.Name, time.Unix(p.StsExpiration, 0).Format("2006-01-02 15:04:05"), p.Name)
+			}
+			return result, nil
 		}
 	}
 	return nil, fmt.Errorf("profile '%s' not found in config", targetProfile)
+}
+
+// validateCreds 在把 profile 交给 SDK 之前做空值兜底, 避免冒出
+// "AccessKeyId not supplied" 这种用户看不懂的底层错误.
+func validateCreds(c *model.Config, source string) error {
+	if c.AccessKeyID == "" || c.AccessKeySecret == "" {
+		return fmt.Errorf("profile '%s' 缺少 access_key_id/access_key_secret (来自 %s); 请配置环境变量 ALIBABA_CLOUD_ACCESS_KEY_ID/SECRET 或编辑该文件", c.ProfileName, source)
+	}
+	return nil
 }
 
 // LoadGrafana reads Grafana configuration.

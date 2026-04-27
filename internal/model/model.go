@@ -19,8 +19,11 @@ type Instance struct {
 type Config struct {
 	AccessKeyID     string `json:"access_key_id"`
 	AccessKeySecret string `json:"access_key_secret"`
-	Region          string `json:"region"`
-	ProfileName     string `json:"name,omitempty"`
+	// SecurityToken (sts_token) is set when credentials are STS / CloudSSO.
+	// Aliyun SDK 必须同时拿到 AK + SK + token, 否则会被服务端拒掉。
+	SecurityToken string `json:"sts_token,omitempty"`
+	Region        string `json:"region"`
+	ProfileName   string `json:"name,omitempty"`
 }
 
 // CommandResult holds the result of a remote command execution

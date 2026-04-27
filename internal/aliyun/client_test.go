@@ -1143,7 +1143,7 @@ func TestNewClient_Error(t *testing.T) {
 	origFactory := ecsClientFactory
 	defer func() { ecsClientFactory = origFactory }()
 
-	ecsClientFactory = func(region, akID, akSecret string) (ecsAPI, error) {
+	ecsClientFactory = func(region, akID, akSecret, stsToken string) (ecsAPI, error) {
 		return nil, fmt.Errorf("auth failed")
 	}
 
@@ -1158,7 +1158,7 @@ func TestNewClient_Success(t *testing.T) {
 	origFactory := ecsClientFactory
 	defer func() { ecsClientFactory = origFactory }()
 
-	ecsClientFactory = func(region, akID, akSecret string) (ecsAPI, error) {
+	ecsClientFactory = func(region, akID, akSecret, stsToken string) (ecsAPI, error) {
 		return &mockECS{}, nil
 	}
 

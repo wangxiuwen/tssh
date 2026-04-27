@@ -19,6 +19,12 @@ type TsshConfig struct {
 
 // Load reads credentials for a specific profile.
 // Priority: env vars → ~/.tssh/config.json → ~/.aliyun/config.json
+//
+// 当 profile == "" 时, 默认 profile 的选择顺序为:
+//  1. ALIBABA_CLOUD_PROFILE 环境变量
+//  2. ~/.tssh/config.json 顶层 "default"
+//  3. ~/.aliyun/config.json 顶层 "current" (跟随 aliyun-cli `aliyun configure switch`)
+//  4. 字面量 "default"
 func Load(profile string) (*model.Config, error) {
 	akID := os.Getenv("ALIBABA_CLOUD_ACCESS_KEY_ID")
 	akSecret := os.Getenv("ALIBABA_CLOUD_ACCESS_KEY_SECRET")
@@ -41,12 +47,18 @@ func Load(profile string) (*model.Config, error) {
 		}, nil
 	}
 
+	// 用户没显式指定时, 让 ALIBABA_CLOUD_PROFILE 充当 sticky default.
+	implicitProfile := profile
+	if implicitProfile == "" {
+		implicitProfile = os.Getenv("ALIBABA_CLOUD_PROFILE")
+	}
+
 	home, _ := os.UserHomeDir()
 	tsshConfigPath := filepath.Join(home, ".tssh", "config.json")
 	if data, err := os.ReadFile(tsshConfigPath); err == nil {
 		var cfg TsshConfig
 		if err := json.Unmarshal(data, &cfg); err == nil {
-			targetProfile := profile
+			targetProfile := implicitProfile
 			if targetProfile == "" {
 				targetProfile = cfg.Default
 			}
@@ -77,6 +89,7 @@ func Load(profile string) (*model.Config, error) {
 	}
 
 	var cfg struct {
+		Current  string `json:"current"`
 		Profiles []struct {
 			Name            string `json:"name"`
 			Mode            string `json:"mode"`
@@ -91,7 +104,11 @@ func Load(profile string) (*model.Config, error) {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
-	targetProfile := profile
+	targetProfile := implicitProfile
+	if targetProfile == "" {
+		// 跟随 aliyun-cli `aliyun configure switch --profile X` 的选择.
+		targetProfile = cfg.Current
+	}
 	if targetProfile == "" {
 		targetProfile = "default"
 	}
@@ -114,6 +131,10 @@ func Load(profile string) (*model.Config, error) {
 					return nil, fmt.Errorf("profile '%s' (mode=%s) 凭据为空, 请先运行 `aliyun sso login --profile %s` 或 `aliyun configure --profile %s` 刷新凭据 (来自 %s)",
 						p.Name, p.Mode, p.Name, p.Name, configPath)
 				}
+				// 给个候选 profile 提示, 避免用户对着空 default 不知道该用哪个.
+				if hint := suggestUsableProfiles(cfg.Profiles, p.Name); hint != "" {
+					return nil, fmt.Errorf("%w; %s", err, hint)
+				}
 				return nil, err
 			}
 			// CloudSSO 的 STS 通常 1 小时过期, 过期后必须重新登录.
@@ -125,6 +146,34 @@ func Load(profile string) (*model.Config, error) {
 		}
 	}
 	return nil, fmt.Errorf("profile '%s' not found in config", targetProfile)
+}
+
+// suggestUsableProfiles 当用户撞到空凭据时, 把 config 里其它"看起来能用"的
+// profile 列出来作为提示, 省掉一次 `tssh profiles` + `--profile X` 的来回.
+// 入参用匿名结构体切片, 直接复用 Load 内部的解析结果.
+func suggestUsableProfiles(profiles []struct {
+	Name            string `json:"name"`
+	Mode            string `json:"mode"`
+	AccessKeyID     string `json:"access_key_id"`
+	AccessKeySecret string `json:"access_key_secret"`
+	StsToken        string `json:"sts_token"`
+	StsExpiration   int64  `json:"sts_expiration"`
+	RegionID        string `json:"region_id"`
+}, skip string) string {
+	var ok []string
+	for _, p := range profiles {
+		if p.Name == skip {
+			continue
+		}
+		if p.AccessKeyID != "" && p.AccessKeySecret != "" {
+			ok = append(ok, p.Name)
+		}
+	}
+	if len(ok) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("可用 profile: %v, 试试 `--profile %s` 或 `aliyun configure switch --profile %s`",
+		ok, ok[0], ok[0])
 }
 
 // validateCreds 在把 profile 交给 SDK 之前做空值兜底, 避免冒出

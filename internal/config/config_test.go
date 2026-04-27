@@ -496,6 +496,125 @@ func TestLoadFromTsshConfig_NoDefaultFallsToDefault(t *testing.T) {
 	}
 }
 
+// 用户跑过 `aliyun configure switch --profile turingsso` 后, tssh 不传 --profile
+// 也应该跟着用 turingsso, 不该再去找字面 "default".
+func TestLoadFromAliyunConfig_FollowsCurrent(t *testing.T) {
+	os.Unsetenv("ALIBABA_CLOUD_ACCESS_KEY_ID")
+	os.Unsetenv("ALIBABA_CLOUD_ACCESS_KEY_SECRET")
+	os.Unsetenv("ALIBABA_CLOUD_PROFILE")
+
+	home := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", home)
+	defer os.Setenv("HOME", origHome)
+
+	aliyunDir := filepath.Join(home, ".aliyun")
+	os.MkdirAll(aliyunDir, 0755)
+
+	raw := `{"current":"sso","profiles":[
+		{"name":"default","mode":"AK","access_key_id":"","access_key_secret":"","region_id":"cn-beijing"},
+		{"name":"sso","mode":"AK","access_key_id":"sso-id","access_key_secret":"sso-sec","region_id":"cn-shanghai"}
+	]}`
+	os.WriteFile(filepath.Join(aliyunDir, "config.json"), []byte(raw), 0644)
+
+	got, err := Load("")
+	if err != nil {
+		t.Fatalf("expected to follow `current` field, got error: %v", err)
+	}
+	if got.ProfileName != "sso" {
+		t.Errorf("expected profile sso (from `current`), got %q", got.ProfileName)
+	}
+}
+
+// 显式 --profile 一定盖过 current 字段.
+func TestLoadFromAliyunConfig_ExplicitProfileOverridesCurrent(t *testing.T) {
+	os.Unsetenv("ALIBABA_CLOUD_ACCESS_KEY_ID")
+	os.Unsetenv("ALIBABA_CLOUD_ACCESS_KEY_SECRET")
+	os.Unsetenv("ALIBABA_CLOUD_PROFILE")
+
+	home := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", home)
+	defer os.Setenv("HOME", origHome)
+
+	aliyunDir := filepath.Join(home, ".aliyun")
+	os.MkdirAll(aliyunDir, 0755)
+
+	raw := `{"current":"a","profiles":[
+		{"name":"a","mode":"AK","access_key_id":"a-id","access_key_secret":"a-sec"},
+		{"name":"b","mode":"AK","access_key_id":"b-id","access_key_secret":"b-sec"}
+	]}`
+	os.WriteFile(filepath.Join(aliyunDir, "config.json"), []byte(raw), 0644)
+
+	got, err := Load("b")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.ProfileName != "b" {
+		t.Errorf("expected explicit profile b, got %q", got.ProfileName)
+	}
+}
+
+// ALIBABA_CLOUD_PROFILE 充当 sticky default, 等同于在每次命令前加 --profile.
+func TestLoadFromAliyunConfig_EnvProfileVar(t *testing.T) {
+	os.Unsetenv("ALIBABA_CLOUD_ACCESS_KEY_ID")
+	os.Unsetenv("ALIBABA_CLOUD_ACCESS_KEY_SECRET")
+	os.Setenv("ALIBABA_CLOUD_PROFILE", "envpicked")
+	defer os.Unsetenv("ALIBABA_CLOUD_PROFILE")
+
+	home := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", home)
+	defer os.Setenv("HOME", origHome)
+
+	aliyunDir := filepath.Join(home, ".aliyun")
+	os.MkdirAll(aliyunDir, 0755)
+
+	raw := `{"current":"default","profiles":[
+		{"name":"default","mode":"AK","access_key_id":"def","access_key_secret":"def"},
+		{"name":"envpicked","mode":"AK","access_key_id":"e-id","access_key_secret":"e-sec"}
+	]}`
+	os.WriteFile(filepath.Join(aliyunDir, "config.json"), []byte(raw), 0644)
+
+	got, err := Load("")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.ProfileName != "envpicked" {
+		t.Errorf("expected ALIBABA_CLOUD_PROFILE to win, got %q", got.ProfileName)
+	}
+}
+
+// default 空 + 没设 current 时, 错误信息要把可用 profile 列出来,
+// 不能只丢一句"default 缺少 AK".
+func TestLoadFromAliyunConfig_EmptyDefaultListsCandidates(t *testing.T) {
+	os.Unsetenv("ALIBABA_CLOUD_ACCESS_KEY_ID")
+	os.Unsetenv("ALIBABA_CLOUD_ACCESS_KEY_SECRET")
+	os.Unsetenv("ALIBABA_CLOUD_PROFILE")
+
+	home := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", home)
+	defer os.Setenv("HOME", origHome)
+
+	aliyunDir := filepath.Join(home, ".aliyun")
+	os.MkdirAll(aliyunDir, 0755)
+
+	raw := `{"profiles":[
+		{"name":"default","mode":"AK","access_key_id":"","access_key_secret":""},
+		{"name":"prod","mode":"AK","access_key_id":"p-id","access_key_secret":"p-sec"}
+	]}`
+	os.WriteFile(filepath.Join(aliyunDir, "config.json"), []byte(raw), 0644)
+
+	_, err := Load("")
+	if err == nil {
+		t.Fatal("expected error for empty default")
+	}
+	if !strings.Contains(err.Error(), "prod") {
+		t.Errorf("error should suggest prod, got: %v", err)
+	}
+}
+
 // 模拟 aliyun-cli `aliyun sso login` 写出的 CloudSSO profile, 校验
 // sts_token 能被透传到 model.Config (否则 SDK 用纯 STS.* AK 调用会被拒).
 func TestLoadFromAliyunConfig_CloudSSO(t *testing.T) {
